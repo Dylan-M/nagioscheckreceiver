@@ -1,0 +1,16 @@
+.PHONY: build test lint generate clean
+
+build:
+	go build ./...
+
+test:
+	go test -race -count=1 ./...
+
+lint:
+	golangci-lint run ./...
+
+generate:
+	go generate ./...
+
+clean:
+	go clean ./...

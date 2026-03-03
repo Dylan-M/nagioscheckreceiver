@@ -1,0 +1,40 @@
+# Test configurations for nagioscheckreceiver
+
+# API mode
+nagioscheck/api:
+  collection_interval: 30s
+  api:
+    endpoint: "https://nagios.example.com/nagios/cgi-bin/statusjson.cgi"
+    username: "nagiosadmin"
+    password: "secret"
+    tls:
+      insecure_skip_verify: true
+
+# File mode (default format)
+nagioscheck/file_default:
+  collection_interval: 15s
+  file:
+    service_perfdata_file: "/var/nagios/service-perfdata"
+    format: "default"
+
+# File mode (PNP4Nagios format)
+nagioscheck/file_pnp4nagios:
+  collection_interval: 15s
+  file:
+    service_perfdata_file: "/var/nagios/service-perfdata"
+    host_perfdata_file: "/var/nagios/host-perfdata"
+    format: "pnp4nagios"
+
+# Livestatus mode (Unix socket)
+nagioscheck/livestatus_unix:
+  collection_interval: 30s
+  livestatus:
+    address: "/var/run/nagios/rw/live"
+    network: "unix"
+
+# Livestatus mode (TCP)
+nagioscheck/livestatus_tcp:
+  collection_interval: 30s
+  livestatus:
+    address: "nagios-host:6557"
+    network: "tcp"
