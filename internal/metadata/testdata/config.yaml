@@ -1,0 +1,95 @@
+default:
+all_set:
+  metrics:
+    nagios.check.execution_time:
+      enabled: true
+    nagios.check.last_check:
+      enabled: true
+    nagios.check.latency:
+      enabled: true
+    nagios.check.state:
+      enabled: true
+    nagios.perfdata.critical:
+      enabled: true
+    nagios.perfdata.max:
+      enabled: true
+    nagios.perfdata.min:
+      enabled: true
+    nagios.perfdata.value:
+      enabled: true
+    nagios.perfdata.warning:
+      enabled: true
+  resource_attributes:
+    nagios.check.command:
+      enabled: true
+    nagios.host.name:
+      enabled: true
+    nagios.service.description:
+      enabled: true
+    nagios.source:
+      enabled: true
+none_set:
+  metrics:
+    nagios.check.execution_time:
+      enabled: false
+    nagios.check.last_check:
+      enabled: false
+    nagios.check.latency:
+      enabled: false
+    nagios.check.state:
+      enabled: false
+    nagios.perfdata.critical:
+      enabled: false
+    nagios.perfdata.max:
+      enabled: false
+    nagios.perfdata.min:
+      enabled: false
+    nagios.perfdata.value:
+      enabled: false
+    nagios.perfdata.warning:
+      enabled: false
+  resource_attributes:
+    nagios.check.command:
+      enabled: false
+    nagios.host.name:
+      enabled: false
+    nagios.service.description:
+      enabled: false
+    nagios.source:
+      enabled: false
+filter_set_include:
+  resource_attributes:
+    nagios.check.command:
+      enabled: true
+      metrics_include:
+        - regexp: ".*"
+    nagios.host.name:
+      enabled: true
+      metrics_include:
+        - regexp: ".*"
+    nagios.service.description:
+      enabled: true
+      metrics_include:
+        - regexp: ".*"
+    nagios.source:
+      enabled: true
+      metrics_include:
+        - regexp: ".*"
+filter_set_exclude:
+  resource_attributes:
+    nagios.check.command:
+      enabled: true
+      metrics_exclude:
+        - strict: "nagios.check.command-val"
+    nagios.host.name:
+      enabled: true
+      metrics_exclude:
+        - strict: "nagios.host.name-val"
+    nagios.service.description:
+      enabled: true
+      metrics_exclude:
+        - strict: "nagios.service.description-val"
+    nagios.source:
+      enabled: true
+      metrics_exclude:
+        - strict: "nagios.source-val"

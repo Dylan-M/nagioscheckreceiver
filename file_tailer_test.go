@@ -84,8 +84,90 @@ func TestFileTailer_PNP4NagiosFormat(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, "webserver01", results[0].HostName)
 	assert.Equal(t, "HTTP Check", results[0].ServiceDescription)
-	assert.Equal(t, "check_http", results[0].CheckCommand) // Arguments stripped
+	assert.Equal(t, "check_http", results[0].CheckCommand)
 	assert.Equal(t, 0, results[0].State)
+}
+
+func TestFileTailer_HostPerfdataDefault(t *testing.T) {
+	dir := t.TempDir()
+	svcFile := filepath.Join(dir, "service-perfdata")
+	hostFile := filepath.Join(dir, "host-perfdata")
+
+	cfg := &FileConfig{
+		ServicePerfdataFile: svcFile,
+		HostPerfdataFile:    hostFile,
+		Format:              "default",
+	}
+
+	logger := zaptest.NewLogger(t)
+	tailer := newFileTailer(cfg, logger)
+
+	// Start with no files
+	err := tailer.start(context.Background(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	defer tailer.shutdown(context.Background())
+
+	// Create service and host files
+	svcLine := "[SERVICEPERFDATA]\t1\thost1\tsvc1\tOK\tout1\tperf1=1\n"
+	hostLine := "[HOSTPERFDATA]\t1\thost1\tUP\tPING OK\trta=0.5ms;100;500\n"
+	require.NoError(t, os.WriteFile(svcFile, []byte(svcLine), 0644))
+	require.NoError(t, os.WriteFile(hostFile, []byte(hostLine), 0644))
+
+	results, err := tailer.collect(context.Background())
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	// Find service result
+	var svcResult, hostResult NagiosCheckResult
+	for _, r := range results {
+		if r.ServiceDescription == "svc1" {
+			svcResult = r
+		}
+		if r.ServiceDescription == "Host Check" {
+			hostResult = r
+		}
+	}
+
+	assert.Equal(t, "host1", svcResult.HostName)
+	assert.Equal(t, "perf1=1", svcResult.PerfData)
+
+	assert.Equal(t, "host1", hostResult.HostName)
+	assert.Equal(t, "Host Check", hostResult.ServiceDescription)
+	assert.Equal(t, 0, hostResult.State) // UP -> 0
+	assert.Equal(t, "rta=0.5ms;100;500", hostResult.PerfData)
+}
+
+func TestFileTailer_HostPerfdataPNP4Nagios(t *testing.T) {
+	dir := t.TempDir()
+	svcFile := filepath.Join(dir, "service-perfdata")
+	hostFile := filepath.Join(dir, "host-perfdata")
+
+	cfg := &FileConfig{
+		ServicePerfdataFile: svcFile,
+		HostPerfdataFile:    hostFile,
+		Format:              "pnp4nagios",
+	}
+
+	logger := zaptest.NewLogger(t)
+	tailer := newFileTailer(cfg, logger)
+
+	err := tailer.start(context.Background(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	defer tailer.shutdown(context.Background())
+
+	hostLine := "HOSTNAME::router01\tHOSTSTATE::UP\tHOSTOUTPUT::PING OK\tHOSTPERFDATA::rta=0.5ms;100;500\tHOSTCHECKCOMMAND::check_ping!100,20%!500,60%\n"
+	require.NoError(t, os.WriteFile(hostFile, []byte(hostLine), 0644))
+	// Create empty service file so tailer doesn't error
+	require.NoError(t, os.WriteFile(svcFile, []byte(""), 0644))
+
+	results, err := tailer.collect(context.Background())
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, "router01", results[0].HostName)
+	assert.Equal(t, "Host Check", results[0].ServiceDescription)
+	assert.Equal(t, 0, results[0].State)
+	assert.Equal(t, "check_ping", results[0].CheckCommand)
+	assert.Equal(t, "rta=0.5ms;100;500", results[0].PerfData)
 }
 
 func TestFileTailer_Rotation(t *testing.T) {
@@ -118,12 +200,10 @@ func TestFileTailer_Rotation(t *testing.T) {
 	os.Rename(perfFile, perfFile+".old")
 	require.NoError(t, os.WriteFile(perfFile, []byte("[SERVICEPERFDATA]\t2\thost2\tsvc2\tWARNING\tout2\tperf2=2\n"), 0644))
 
-	// Collect should get data from both old and new file
 	results, err := tailer.collect(context.Background())
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(results), 1)
 
-	// Verify we got data from at least one of the files
 	foundHost1 := false
 	foundHost2 := false
 	for _, r := range results {
@@ -146,7 +226,6 @@ func TestFileTailer_FileNotExist(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	tailer := newFileTailer(cfg, logger)
 
-	// Should not error - just wait for file to appear
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
 
@@ -175,7 +254,7 @@ func TestParseDefaultLine(t *testing.T) {
 		},
 		{
 			name:    "wrong prefix",
-			line:    "[HOSTPERFDATA]\t1\thost\tsvc\tOK\tout\tperf",
+			line:    "[HOSTPERFDATA]\t1\thost\tUP\tout\tperf",
 			wantErr: true,
 		},
 		{
@@ -198,6 +277,16 @@ func TestParseDefaultLine(t *testing.T) {
 	}
 }
 
+func TestParseDefaultHostLine(t *testing.T) {
+	line := "[HOSTPERFDATA]\t1520553350\trouter01\tUP\tPING OK - Packet loss = 0%\trta=0.456ms;100;500;0;1000"
+	result, err := parseDefaultHostLine(line)
+	require.NoError(t, err)
+	assert.Equal(t, "router01", result.HostName)
+	assert.Equal(t, "Host Check", result.ServiceDescription)
+	assert.Equal(t, 0, result.State)
+	assert.Equal(t, "rta=0.456ms;100;500;0;1000", result.PerfData)
+}
+
 func TestParsePNP4NagiosLine(t *testing.T) {
 	line := "HOSTNAME::db01\tSERVICEDESC::MySQL\tSERVICESTATE::CRITICAL\tSERVICEOUTPUT::MySQL DOWN\tSERVICEPERFDATA::time=5s;3;5\tSERVICECHECKCOMMAND::check_mysql!-H db01"
 
@@ -205,7 +294,44 @@ func TestParsePNP4NagiosLine(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "db01", result.HostName)
 	assert.Equal(t, "MySQL", result.ServiceDescription)
-	assert.Equal(t, 2, result.State) // CRITICAL
+	assert.Equal(t, 2, result.State)
 	assert.Equal(t, "check_mysql", result.CheckCommand)
 	assert.Equal(t, "time=5s;3;5", result.PerfData)
+}
+
+func TestParsePNP4NagiosHostLine(t *testing.T) {
+	line := "HOSTNAME::router01\tHOSTSTATE::DOWN\tHOSTOUTPUT::PING CRITICAL\tHOSTPERFDATA::rta=500ms;100;500\tHOSTCHECKCOMMAND::check_ping"
+
+	result, err := parsePNP4NagiosHostLine(line)
+	require.NoError(t, err)
+	assert.Equal(t, "router01", result.HostName)
+	assert.Equal(t, "Host Check", result.ServiceDescription)
+	assert.Equal(t, 2, result.State) // DOWN -> CRITICAL
+	assert.Equal(t, "check_ping", result.CheckCommand)
+	assert.Equal(t, "rta=500ms;100;500", result.PerfData)
+}
+
+func TestParseNagiosState(t *testing.T) {
+	tests := []struct {
+		input string
+		want  int
+	}{
+		{"OK", 0},
+		{"UP", 0},
+		{"0", 0},
+		{"WARNING", 1},
+		{"1", 1},
+		{"CRITICAL", 2},
+		{"DOWN", 2},
+		{"2", 2},
+		{"UNKNOWN", 3},
+		{"UNREACHABLE", 3},
+		{"3", 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			assert.Equal(t, tt.want, parseNagiosState(tt.input))
+		})
+	}
 }

@@ -12,6 +12,8 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/scraper"
 	"go.opentelemetry.io/collector/scraper/scraperhelper"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nagioscheckreceiver/internal/metadata"
 )
 
 const (
@@ -35,7 +37,8 @@ func createDefaultConfig() component.Config {
 	cfg.CollectionInterval = defaultCollectionInterval
 
 	return &Config{
-		ControllerConfig: cfg,
+		ControllerConfig:     cfg,
+		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
 	}
 }
 

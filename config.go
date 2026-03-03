@@ -11,11 +11,15 @@ import (
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/scraper/scraperhelper"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nagioscheckreceiver/internal/metadata"
 )
 
 // Config defines configuration for the Nagios check receiver.
 type Config struct {
 	scraperhelper.ControllerConfig `mapstructure:",squash"`
+
+	metadata.MetricsBuilderConfig `mapstructure:",squash"`
 
 	// Exactly one of API, File, or Livestatus must be set.
 	API        *APIConfig        `mapstructure:"api"`

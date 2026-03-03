@@ -14,6 +14,8 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nagioscheckreceiver/internal/metadata"
 )
 
 // dataSource is the interface all ingestion modes implement.
@@ -36,17 +38,18 @@ type NagiosCheckResult struct {
 	Latency            float64 // Seconds
 }
 
-// stateNames maps state integers to human-readable names.
-var stateNames = map[int]string{
-	0: "ok",
-	1: "warning",
-	2: "critical",
-	3: "unknown",
+// stateToAttribute maps state integers to the generated attribute enum.
+var stateToAttribute = map[int]metadata.AttributeNagiosState{
+	0: metadata.AttributeNagiosStateOk,
+	1: metadata.AttributeNagiosStateWarning,
+	2: metadata.AttributeNagiosStateCritical,
+	3: metadata.AttributeNagiosStateUnknown,
 }
 
 type nagiosScraper struct {
 	cfg    *Config
 	logger *zap.Logger
+	mb     *metadata.MetricsBuilder
 	source dataSource
 }
 
@@ -54,6 +57,7 @@ func newNagiosScraper(params receiver.Settings, cfg *Config) *nagiosScraper {
 	return &nagiosScraper{
 		cfg:    cfg,
 		logger: params.Logger,
+		mb:     metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, params),
 	}
 }
 
@@ -96,54 +100,25 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 		return pmetric.NewMetrics(), nil
 	}
 
-	md := pmetric.NewMetrics()
 	var errs error
-
 	sourceName := s.sourceName()
+	now := pcommon.NewTimestampFromTime(time.Now())
 
 	for _, result := range results {
-		rm := md.ResourceMetrics().AppendEmpty()
-		res := rm.Resource()
-
-		res.Attributes().PutStr("nagios.host.name", result.HostName)
-		res.Attributes().PutStr("nagios.service.description", result.ServiceDescription)
-		if result.CheckCommand != "" {
-			res.Attributes().PutStr("nagios.check.command", result.CheckCommand)
-		}
-		res.Attributes().PutStr("nagios.source", sourceName)
-
-		sm := rm.ScopeMetrics().AppendEmpty()
-		sm.Scope().SetName("github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nagioscheckreceiver")
-		sm.Scope().SetVersion("0.1.0")
-
-		now := pcommon.NewTimestampFromTime(time.Now())
-
-		// nagios.check.state
-		stateName, ok := stateNames[result.State]
+		// Record static check metrics
+		stateAttr, ok := stateToAttribute[result.State]
 		if !ok {
-			stateName = "unknown"
+			stateAttr = metadata.AttributeNagiosStateUnknown
 		}
-		stateMetric := sm.Metrics().AppendEmpty()
-		stateMetric.SetName("nagios.check.state")
-		stateMetric.SetDescription("Nagios check state as an integer: 0=OK, 1=WARNING, 2=CRITICAL, 3=UNKNOWN.")
-		stateMetric.SetUnit("1")
-		stateGauge := stateMetric.SetEmptyGauge()
-		dp := stateGauge.DataPoints().AppendEmpty()
-		dp.SetTimestamp(now)
-		dp.SetIntValue(int64(result.State))
-		dp.Attributes().PutStr("nagios.state", stateName)
+		s.mb.RecordNagiosCheckStateDataPoint(now, int64(result.State), stateAttr)
+		s.mb.RecordNagiosCheckExecutionTimeDataPoint(now, result.ExecutionTime)
+		s.mb.RecordNagiosCheckLatencyDataPoint(now, result.Latency)
 
-		// nagios.check.execution_time
-		execMetric := sm.Metrics().AppendEmpty()
-		execMetric.SetName("nagios.check.execution_time")
-		execMetric.SetDescription("Check execution duration in seconds.")
-		execMetric.SetUnit("s")
-		execGauge := execMetric.SetEmptyGauge()
-		execDp := execGauge.DataPoints().AppendEmpty()
-		execDp.SetTimestamp(now)
-		execDp.SetDoubleValue(result.ExecutionTime)
+		if result.LastCheck > 0 {
+			s.mb.RecordNagiosCheckLastCheckDataPoint(now, result.LastCheck)
+		}
 
-		// Parse and emit perfdata metrics
+		// Parse and record perfdata metrics
 		if result.PerfData != "" {
 			perfMetrics, parseErr := ParsePerfdata(result.PerfData)
 			if parseErr != nil {
@@ -156,73 +131,36 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 			}
 
 			for _, pm := range perfMetrics {
-				perfValueMetric := sm.Metrics().AppendEmpty()
-				perfValueMetric.SetName("nagios.perfdata.value")
-				perfValueMetric.SetDescription("The performance data metric value from Nagios plugin output.")
-				perfValueMetric.SetUnit("1")
-				perfGauge := perfValueMetric.SetEmptyGauge()
-				perfDp := perfGauge.DataPoints().AppendEmpty()
-				perfDp.SetTimestamp(now)
-				perfDp.SetDoubleValue(pm.Value)
-				perfDp.Attributes().PutStr("nagios.perfdata.label", pm.Label)
-				perfDp.Attributes().PutStr("nagios.perfdata.unit", pm.Unit)
+				s.mb.RecordNagiosPerfdataValueDataPoint(now, pm.Value, pm.Label, pm.Unit)
 
 				if pm.Warning != nil {
-					warnMetric := sm.Metrics().AppendEmpty()
-					warnMetric.SetName("nagios.perfdata.warning")
-					warnMetric.SetDescription("Warning threshold upper bound from performance data.")
-					warnMetric.SetUnit("1")
-					warnGauge := warnMetric.SetEmptyGauge()
-					warnDp := warnGauge.DataPoints().AppendEmpty()
-					warnDp.SetTimestamp(now)
-					warnDp.SetDoubleValue(*pm.Warning)
-					warnDp.Attributes().PutStr("nagios.perfdata.label", pm.Label)
-					warnDp.Attributes().PutStr("nagios.perfdata.unit", pm.Unit)
+					s.mb.RecordNagiosPerfdataWarningDataPoint(now, *pm.Warning, pm.Label, pm.Unit)
 				}
-
 				if pm.Critical != nil {
-					critMetric := sm.Metrics().AppendEmpty()
-					critMetric.SetName("nagios.perfdata.critical")
-					critMetric.SetDescription("Critical threshold upper bound from performance data.")
-					critMetric.SetUnit("1")
-					critGauge := critMetric.SetEmptyGauge()
-					critDp := critGauge.DataPoints().AppendEmpty()
-					critDp.SetTimestamp(now)
-					critDp.SetDoubleValue(*pm.Critical)
-					critDp.Attributes().PutStr("nagios.perfdata.label", pm.Label)
-					critDp.Attributes().PutStr("nagios.perfdata.unit", pm.Unit)
+					s.mb.RecordNagiosPerfdataCriticalDataPoint(now, *pm.Critical, pm.Label, pm.Unit)
 				}
-
 				if pm.Min != nil {
-					minMetric := sm.Metrics().AppendEmpty()
-					minMetric.SetName("nagios.perfdata.min")
-					minMetric.SetDescription("Minimum possible value from performance data.")
-					minMetric.SetUnit("1")
-					minGauge := minMetric.SetEmptyGauge()
-					minDp := minGauge.DataPoints().AppendEmpty()
-					minDp.SetTimestamp(now)
-					minDp.SetDoubleValue(*pm.Min)
-					minDp.Attributes().PutStr("nagios.perfdata.label", pm.Label)
-					minDp.Attributes().PutStr("nagios.perfdata.unit", pm.Unit)
+					s.mb.RecordNagiosPerfdataMinDataPoint(now, *pm.Min, pm.Label, pm.Unit)
 				}
-
 				if pm.Max != nil {
-					maxMetric := sm.Metrics().AppendEmpty()
-					maxMetric.SetName("nagios.perfdata.max")
-					maxMetric.SetDescription("Maximum possible value from performance data.")
-					maxMetric.SetUnit("1")
-					maxGauge := maxMetric.SetEmptyGauge()
-					maxDp := maxGauge.DataPoints().AppendEmpty()
-					maxDp.SetTimestamp(now)
-					maxDp.SetDoubleValue(*pm.Max)
-					maxDp.Attributes().PutStr("nagios.perfdata.label", pm.Label)
-					maxDp.Attributes().PutStr("nagios.perfdata.unit", pm.Unit)
+					s.mb.RecordNagiosPerfdataMaxDataPoint(now, *pm.Max, pm.Label, pm.Unit)
 				}
 			}
 		}
+
+		// Build resource and emit for this host/service
+		rb := s.mb.NewResourceBuilder()
+		rb.SetNagiosHostName(result.HostName)
+		rb.SetNagiosServiceDescription(result.ServiceDescription)
+		rb.SetNagiosSource(sourceName)
+		if result.CheckCommand != "" {
+			rb.SetNagiosCheckCommand(result.CheckCommand)
+		}
+
+		s.mb.EmitForResource(metadata.WithResource(rb.Emit()))
 	}
 
-	return md, errs
+	return s.mb.Emit(), errs
 }
 
 func (s *nagiosScraper) sourceName() string {

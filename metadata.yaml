@@ -1,4 +1,4 @@
-type: receiver
+type: nagioscheck
 
 status:
   class: receiver
@@ -11,6 +11,13 @@ status:
 sem_conv_version: 1.27.0
 
 resource_attributes:
+  nagios.check.command:
+    description: >-
+      The base check command name (e.g., "check_http"), with arguments stripped.
+      Only present when the ingestion mode provides it (Livestatus and PNP4Nagios file modes).
+    type: string
+    enabled: true
+
   nagios.host.name:
     description: The Nagios host name.
     type: string
@@ -21,28 +28,12 @@ resource_attributes:
     type: string
     enabled: true
 
-  nagios.check.command:
-    description: >-
-      The base check command name (e.g., "check_http"), with arguments stripped.
-      Only present when the ingestion mode provides it (Livestatus and PNP4Nagios file modes).
-    type: string
-    enabled: true
-
   nagios.source:
     description: 'Ingestion mode: "api", "file", or "livestatus".'
     type: string
     enabled: true
 
 attributes:
-  nagios.state:
-    description: 'Human-readable state name: ok, warning, critical, unknown.'
-    type: string
-    enum:
-      - ok
-      - warning
-      - critical
-      - unknown
-
   nagios.perfdata.label:
     description: The performance data metric label from Nagios plugin output.
     type: string
@@ -52,27 +43,19 @@ attributes:
       The OTel-mapped unit of measurement for this perfdata metric.
     type: string
 
-metrics:
-  nagios.check.state:
-    description: >-
-      Nagios check state as an integer: 0=OK, 1=WARNING, 2=CRITICAL, 3=UNKNOWN.
-    enabled: true
-    gauge:
-      value_type: int
-    unit: "1"
-    attributes:
-      - nagios.state
+  nagios.state:
+    description: 'Human-readable state name: ok, warning, critical, unknown.'
+    type: string
+    enum:
+      - ok
+      - warning
+      - critical
+      - unknown
 
+metrics:
   nagios.check.execution_time:
     description: Check execution duration in seconds.
     enabled: true
-    gauge:
-      value_type: double
-    unit: s
-
-  nagios.check.latency:
-    description: Scheduling latency in seconds.
-    enabled: false
     gauge:
       value_type: double
     unit: s
@@ -83,6 +66,53 @@ metrics:
     gauge:
       value_type: int
     unit: s
+
+  nagios.check.latency:
+    description: Scheduling latency in seconds.
+    enabled: false
+    gauge:
+      value_type: double
+    unit: s
+
+  nagios.check.state:
+    description: >-
+      Nagios check state as an integer: 0=OK, 1=WARNING, 2=CRITICAL, 3=UNKNOWN.
+    enabled: true
+    gauge:
+      value_type: int
+    unit: "1"
+    attributes:
+      - nagios.state
+
+  nagios.perfdata.critical:
+    description: Critical threshold upper bound from performance data.
+    enabled: false
+    gauge:
+      value_type: double
+    unit: "1"
+    attributes:
+      - nagios.perfdata.label
+      - nagios.perfdata.unit
+
+  nagios.perfdata.max:
+    description: Maximum possible value from performance data.
+    enabled: false
+    gauge:
+      value_type: double
+    unit: "1"
+    attributes:
+      - nagios.perfdata.label
+      - nagios.perfdata.unit
+
+  nagios.perfdata.min:
+    description: Minimum possible value from performance data.
+    enabled: false
+    gauge:
+      value_type: double
+    unit: "1"
+    attributes:
+      - nagios.perfdata.label
+      - nagios.perfdata.unit
 
   nagios.perfdata.value:
     description: >-
@@ -105,32 +135,8 @@ metrics:
       - nagios.perfdata.label
       - nagios.perfdata.unit
 
-  nagios.perfdata.critical:
-    description: Critical threshold upper bound from performance data.
-    enabled: false
-    gauge:
-      value_type: double
-    unit: "1"
-    attributes:
-      - nagios.perfdata.label
-      - nagios.perfdata.unit
-
-  nagios.perfdata.min:
-    description: Minimum possible value from performance data.
-    enabled: false
-    gauge:
-      value_type: double
-    unit: "1"
-    attributes:
-      - nagios.perfdata.label
-      - nagios.perfdata.unit
-
-  nagios.perfdata.max:
-    description: Maximum possible value from performance data.
-    enabled: false
-    gauge:
-      value_type: double
-    unit: "1"
-    attributes:
-      - nagios.perfdata.label
-      - nagios.perfdata.unit
+tests:
+  config:
+    livestatus:
+      address: "/tmp/test-live"
+      network: "unix"

@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/receiver/receivertest"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nagioscheckreceiver/internal/metadata"
 )
 
 type mockDataSource struct {
@@ -26,7 +28,8 @@ func (m *mockDataSource) collect(_ context.Context) ([]NagiosCheckResult, error)
 
 func TestScraper_Scrape(t *testing.T) {
 	cfg := &Config{
-		API: &APIConfig{},
+		API:                  &APIConfig{},
+		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
 	}
 	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
 	s := newNagiosScraper(params, cfg)
@@ -47,7 +50,6 @@ func TestScraper_Scrape(t *testing.T) {
 
 	md, err := s.scrape(context.Background())
 	require.NoError(t, err)
-
 	require.Equal(t, 1, md.ResourceMetrics().Len())
 
 	rm := md.ResourceMetrics().At(0)
@@ -65,28 +67,29 @@ func TestScraper_Scrape(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "api", sourceVal.Str())
 
-	// Should have check.state + execution_time + 2 perfdata.value metrics + 2 min metrics
+	// MetricsBuilder emits enabled metrics: check.state, check.execution_time, perfdata.value (x2)
 	sm := rm.ScopeMetrics().At(0)
-	assert.GreaterOrEqual(t, sm.Metrics().Len(), 4)
+	assert.GreaterOrEqual(t, sm.Metrics().Len(), 3)
 
-	// Verify state metric
-	stateMetric := sm.Metrics().At(0)
-	assert.Equal(t, "nagios.check.state", stateMetric.Name())
-	assert.Equal(t, int64(0), stateMetric.Gauge().DataPoints().At(0).IntValue())
-
-	stateAttr, ok := stateMetric.Gauge().DataPoints().At(0).Attributes().Get("nagios.state")
-	require.True(t, ok)
-	assert.Equal(t, "ok", stateAttr.Str())
-
-	// Verify execution time metric
-	execMetric := sm.Metrics().At(1)
-	assert.Equal(t, "nagios.check.execution_time", execMetric.Name())
-	assert.InDelta(t, 0.001, execMetric.Gauge().DataPoints().At(0).DoubleValue(), 0.0001)
+	// Find and verify state metric
+	found := false
+	for i := 0; i < sm.Metrics().Len(); i++ {
+		m := sm.Metrics().At(i)
+		if m.Name() == "nagios.check.state" {
+			found = true
+			assert.Equal(t, int64(0), m.Gauge().DataPoints().At(0).IntValue())
+			stateAttr, ok := m.Gauge().DataPoints().At(0).Attributes().Get("nagios.state")
+			require.True(t, ok)
+			assert.Equal(t, "ok", stateAttr.Str())
+		}
+	}
+	assert.True(t, found, "nagios.check.state metric not found")
 }
 
 func TestScraper_ScrapeEmptyResults(t *testing.T) {
 	cfg := &Config{
-		API: &APIConfig{},
+		API:                  &APIConfig{},
+		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
 	}
 	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
 	s := newNagiosScraper(params, cfg)
@@ -100,7 +103,8 @@ func TestScraper_ScrapeEmptyResults(t *testing.T) {
 
 func TestScraper_CheckCommandAttribute(t *testing.T) {
 	cfg := &Config{
-		Livestatus: &LivestatusConfig{Address: "/tmp/live", Network: "unix"},
+		Livestatus:           &LivestatusConfig{Address: "/tmp/live", Network: "unix"},
+		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
 	}
 	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
 	s := newNagiosScraper(params, cfg)
@@ -133,7 +137,8 @@ func TestScraper_CheckCommandAttribute(t *testing.T) {
 
 func TestScraper_WarningState(t *testing.T) {
 	cfg := &Config{
-		File: &FileConfig{ServicePerfdataFile: "/tmp/perf", Format: "default"},
+		File:                 &FileConfig{ServicePerfdataFile: "/tmp/perf", Format: "default"},
+		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
 	}
 	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
 	s := newNagiosScraper(params, cfg)
@@ -154,10 +159,95 @@ func TestScraper_WarningState(t *testing.T) {
 	require.NoError(t, err)
 
 	sm := md.ResourceMetrics().At(0).ScopeMetrics().At(0)
-	stateMetric := sm.Metrics().At(0)
-	assert.Equal(t, int64(1), stateMetric.Gauge().DataPoints().At(0).IntValue())
+	for i := 0; i < sm.Metrics().Len(); i++ {
+		m := sm.Metrics().At(i)
+		if m.Name() == "nagios.check.state" {
+			assert.Equal(t, int64(1), m.Gauge().DataPoints().At(0).IntValue())
+			stateAttr, ok := m.Gauge().DataPoints().At(0).Attributes().Get("nagios.state")
+			require.True(t, ok)
+			assert.Equal(t, "warning", stateAttr.Str())
+		}
+	}
+}
 
-	stateAttr, ok := stateMetric.Gauge().DataPoints().At(0).Attributes().Get("nagios.state")
-	require.True(t, ok)
-	assert.Equal(t, "warning", stateAttr.Str())
+func TestScraper_LatencyAndLastCheckEmitted(t *testing.T) {
+	// Enable the disabled-by-default metrics
+	mbc := metadata.DefaultMetricsBuilderConfig()
+	mbc.Metrics.NagiosCheckLatency.Enabled = true
+	mbc.Metrics.NagiosCheckLastCheck.Enabled = true
+
+	cfg := &Config{
+		API:                  &APIConfig{},
+		MetricsBuilderConfig: mbc,
+	}
+	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
+	s := newNagiosScraper(params, cfg)
+
+	s.source = &mockDataSource{
+		results: []NagiosCheckResult{
+			{
+				HostName:           "host1",
+				ServiceDescription: "svc1",
+				State:              0,
+				ExecutionTime:      0.1,
+				Latency:            0.05,
+				LastCheck:          1520553350,
+			},
+		},
+	}
+
+	md, err := s.scrape(context.Background())
+	require.NoError(t, err)
+
+	sm := md.ResourceMetrics().At(0).ScopeMetrics().At(0)
+
+	foundLatency := false
+	foundLastCheck := false
+	for i := 0; i < sm.Metrics().Len(); i++ {
+		m := sm.Metrics().At(i)
+		switch m.Name() {
+		case "nagios.check.latency":
+			foundLatency = true
+			assert.InDelta(t, 0.05, m.Gauge().DataPoints().At(0).DoubleValue(), 0.001)
+		case "nagios.check.last_check":
+			foundLastCheck = true
+			assert.Equal(t, int64(1520553350), m.Gauge().DataPoints().At(0).IntValue())
+		}
+	}
+	assert.True(t, foundLatency, "nagios.check.latency metric should be emitted when enabled")
+	assert.True(t, foundLastCheck, "nagios.check.last_check metric should be emitted when enabled")
+}
+
+func TestScraper_DisabledMetricsNotEmitted(t *testing.T) {
+	// Default config: latency and last_check are disabled
+	cfg := &Config{
+		API:                  &APIConfig{},
+		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
+	}
+	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
+	s := newNagiosScraper(params, cfg)
+
+	s.source = &mockDataSource{
+		results: []NagiosCheckResult{
+			{
+				HostName:           "host1",
+				ServiceDescription: "svc1",
+				State:              0,
+				ExecutionTime:      0.1,
+				Latency:            0.05,
+				LastCheck:          1520553350,
+			},
+		},
+	}
+
+	md, err := s.scrape(context.Background())
+	require.NoError(t, err)
+
+	sm := md.ResourceMetrics().At(0).ScopeMetrics().At(0)
+
+	for i := 0; i < sm.Metrics().Len(); i++ {
+		m := sm.Metrics().At(i)
+		assert.NotEqual(t, "nagios.check.latency", m.Name(), "latency should not be emitted when disabled")
+		assert.NotEqual(t, "nagios.check.last_check", m.Name(), "last_check should not be emitted when disabled")
+	}
 }
