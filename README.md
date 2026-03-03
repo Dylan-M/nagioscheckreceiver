@@ -3,7 +3,7 @@
 | Status        |               |
 |---------------|---------------|
 | Stability     | [development] |
-| Distributions | [contrib]     |
+| Distributions | []            |
 
 Receives Nagios check results and performance data, converting them into OpenTelemetry metrics. Supports three mutually exclusive ingestion modes:
 
