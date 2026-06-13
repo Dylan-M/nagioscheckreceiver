@@ -39,10 +39,11 @@ func (c *livestatusClient) shutdown(_ context.Context) error {
 // livestatusQuery is the LQL query to fetch service check results.
 // Uses custom separators to avoid semicolon collision with perfdata format:
 // Separators: 10 9 44 124
-//   10 = newline (row separator)
-//   9  = tab (column separator)
-//   44 = comma (list separator)
-//   124 = pipe (host list separator)
+//
+//	10 = newline (row separator)
+//	9  = tab (column separator)
+//	44 = comma (list separator)
+//	124 = pipe (host list separator)
 const livestatusQuery = `GET services
 Columns: host_name description check_command state perf_data plugin_output last_check execution_time latency
 Separators: 10 9 44 124

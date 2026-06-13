@@ -172,8 +172,8 @@ func TestAPIClient_AuthFailure(t *testing.T) {
 
 func TestAPIStatusToState(t *testing.T) {
 	tests := []struct {
-		bitmask    int
-		wantState  int
+		bitmask   int
+		wantState int
 	}{
 		{1, 3},  // Pending -> UNKNOWN
 		{2, 0},  // OK
