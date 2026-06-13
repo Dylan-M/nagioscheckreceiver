@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -279,6 +280,7 @@ func parseDefaultLine(line string) (NagiosCheckResult, error) {
 		State:              parseNagiosState(parts[4]),
 		PluginOutput:       parts[5],
 		PerfData:           parts[6],
+		LastCheck:          parseTimet(parts[1]),
 	}, nil
 }
 
@@ -300,6 +302,7 @@ func parseDefaultHostLine(line string) (NagiosCheckResult, error) {
 		State:              parseNagiosState(parts[3]),
 		PluginOutput:       parts[4],
 		PerfData:           parts[5],
+		LastCheck:          parseTimet(parts[1]),
 	}, nil
 }
 
@@ -324,6 +327,7 @@ func parsePNP4NagiosLine(line string) (NagiosCheckResult, error) {
 		PluginOutput:       fields["SERVICEOUTPUT"],
 		PerfData:           fields["SERVICEPERFDATA"],
 		State:              parseNagiosState(fields["SERVICESTATE"]),
+		LastCheck:          parseTimet(fields["TIMET"]),
 	}
 
 	if cmd, ok := fields["SERVICECHECKCOMMAND"]; ok && cmd != "" {
@@ -351,6 +355,7 @@ func parsePNP4NagiosHostLine(line string) (NagiosCheckResult, error) {
 		PluginOutput:       fields["HOSTOUTPUT"],
 		PerfData:           fields["HOSTPERFDATA"],
 		State:              parseNagiosState(fields["HOSTSTATE"]),
+		LastCheck:          parseTimet(fields["TIMET"]),
 	}
 
 	if cmd, ok := fields["HOSTCHECKCOMMAND"]; ok && cmd != "" {
@@ -387,6 +392,12 @@ func parseNagiosState(s string) int {
 	default:
 		return 3 // UNKNOWN / UNREACHABLE
 	}
+}
+
+// parseTimet parses a Nagios $TIMET$ field (Unix seconds) into an int64, returning 0 if absent or unparseable.
+func parseTimet(s string) int64 {
+	t, _ := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	return t
 }
 
 func truncate(s string, maxLen int) string {

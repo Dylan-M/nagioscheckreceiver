@@ -250,6 +250,7 @@ func TestParseDefaultLine(t *testing.T) {
 				State:              0,
 				PluginOutput:       "HTTP OK",
 				PerfData:           "time=0.001s",
+				LastCheck:          1520553350,
 			},
 		},
 		{

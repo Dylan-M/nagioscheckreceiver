@@ -105,17 +105,24 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 	now := pcommon.NewTimestampFromTime(time.Now())
 
 	for _, result := range results {
+		// Stamp datapoints at the check's actual time, falling back to scrape time
+		// only when the source didn't provide a last_check.
+		ts := now
+		if result.LastCheck > 0 {
+			ts = pcommon.NewTimestampFromTime(time.Unix(result.LastCheck, 0))
+		}
+
 		// Record static check metrics
 		stateAttr, ok := stateToAttribute[result.State]
 		if !ok {
 			stateAttr = metadata.AttributeNagiosStateUnknown
 		}
-		s.mb.RecordNagiosCheckStateDataPoint(now, int64(result.State), stateAttr)
-		s.mb.RecordNagiosCheckExecutionTimeDataPoint(now, result.ExecutionTime)
-		s.mb.RecordNagiosCheckLatencyDataPoint(now, result.Latency)
+		s.mb.RecordNagiosCheckStateDataPoint(ts, int64(result.State), stateAttr)
+		s.mb.RecordNagiosCheckExecutionTimeDataPoint(ts, result.ExecutionTime)
+		s.mb.RecordNagiosCheckLatencyDataPoint(ts, result.Latency)
 
 		if result.LastCheck > 0 {
-			s.mb.RecordNagiosCheckLastCheckDataPoint(now, result.LastCheck)
+			s.mb.RecordNagiosCheckLastCheckDataPoint(ts, result.LastCheck)
 		}
 
 		// Parse and record perfdata metrics
@@ -131,19 +138,19 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 			}
 
 			for _, pm := range perfMetrics {
-				s.mb.RecordNagiosPerfdataValueDataPoint(now, pm.Value, pm.Label, pm.Unit)
+				s.mb.RecordNagiosPerfdataValueDataPoint(ts, pm.Value, pm.Label, pm.Unit)
 
 				if pm.Warning != nil {
-					s.mb.RecordNagiosPerfdataWarningDataPoint(now, *pm.Warning, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataWarningDataPoint(ts, *pm.Warning, pm.Label, pm.Unit)
 				}
 				if pm.Critical != nil {
-					s.mb.RecordNagiosPerfdataCriticalDataPoint(now, *pm.Critical, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataCriticalDataPoint(ts, *pm.Critical, pm.Label, pm.Unit)
 				}
 				if pm.Min != nil {
-					s.mb.RecordNagiosPerfdataMinDataPoint(now, *pm.Min, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataMinDataPoint(ts, *pm.Min, pm.Label, pm.Unit)
 				}
 				if pm.Max != nil {
-					s.mb.RecordNagiosPerfdataMaxDataPoint(now, *pm.Max, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataMaxDataPoint(ts, *pm.Max, pm.Label, pm.Unit)
 				}
 			}
 		}
