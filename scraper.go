@@ -51,13 +51,19 @@ type nagiosScraper struct {
 	logger *zap.Logger
 	mb     *metadata.MetricsBuilder
 	source dataSource
+
+	// lastSeen tracks the most recent last_check emitted per host+service so an
+	// unchanged check isn't re-emitted on every scrape. Accessed only from scrape(),
+	// which the scraper controller calls serially, so it needs no lock.
+	lastSeen map[string]int64
 }
 
 func newNagiosScraper(params receiver.Settings, cfg *Config) *nagiosScraper {
 	return &nagiosScraper{
-		cfg:    cfg,
-		logger: params.Logger,
-		mb:     metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, params),
+		cfg:      cfg,
+		logger:   params.Logger,
+		mb:       metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, params),
+		lastSeen: make(map[string]int64),
 	}
 }
 
@@ -105,6 +111,19 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 	now := pcommon.NewTimestampFromTime(time.Now())
 
 	for _, result := range results {
+		// A Nagios check produces all of its metrics (state, timing, and every
+		// perfdata value) from one plugin execution that shares a single last_check.
+		// Skip the whole check when its last_check is unchanged since the previous
+		// scrape, so a scrape interval shorter than the check interval doesn't
+		// re-emit the same measurement.
+		if result.LastCheck > 0 {
+			key := result.HostName + "\x00" + result.ServiceDescription
+			if prev, seen := s.lastSeen[key]; seen && prev == result.LastCheck {
+				continue
+			}
+			s.lastSeen[key] = result.LastCheck
+		}
+
 		// Stamp datapoints at the check's actual time, falling back to scrape time
 		// only when the source didn't provide a last_check.
 		ts := now

@@ -69,6 +69,35 @@ func TestScraper_TimestampFallsBackToNowWhenNoLastCheck(t *testing.T) {
 	assert.LessOrEqual(t, uint64(dp.Timestamp()), uint64(after))
 }
 
+// A check (host+service) is skipped as a unit when its last_check is unchanged;
+// all of the check's metrics move together, since they share one last_check.
+func TestScraper_EmitsOnlyWhenLastCheckAdvances(t *testing.T) {
+	cfg := &Config{Livestatus: &LivestatusConfig{Address: "/tmp/live", Network: "unix"}, MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig()}
+	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
+	s := newNagiosScraper(params, cfg)
+	mock := &mockDataSource{}
+	s.source = mock
+
+	res := func(lc int64) []NagiosCheckResult {
+		return []NagiosCheckResult{{HostName: "h", ServiceDescription: "s", State: 0, PerfData: "x=1", ExecutionTime: 0.1, LastCheck: lc}}
+	}
+
+	mock.results = res(1000)
+	md, err := s.scrape(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, md.ResourceMetrics().Len(), "first scrape should emit")
+
+	mock.results = res(1000) // unchanged last_check
+	md, err = s.scrape(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, md.ResourceMetrics().Len(), "unchanged last_check must not re-emit")
+
+	mock.results = res(2000) // advanced
+	md, err = s.scrape(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, md.ResourceMetrics().Len(), "advanced last_check should emit again")
+}
+
 // File parsers must populate LastCheck from the TIMET field so file mode can stamp at real time.
 func TestParseDefaultLine_PopulatesLastCheck(t *testing.T) {
 	r, err := parseDefaultLine("[SERVICEPERFDATA]\t1520553350\thost1\tsvc1\tOK\tplugin out\tx=1;2;3")
