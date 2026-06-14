@@ -11,15 +11,15 @@ status:
 sem_conv_version: 1.27.0
 
 resource_attributes:
+  host.name:
+    description: The name of the host the Nagios check targets (OTel semantic convention).
+    type: string
+    enabled: true
+
   nagios.check.command:
     description: >-
       The base check command name (e.g., "check_http"), with arguments stripped.
       Only present when the ingestion mode provides it (Livestatus and PNP4Nagios file modes).
-    type: string
-    enabled: true
-
-  nagios.host.name:
-    description: The Nagios host name.
     type: string
     enabled: true
 
@@ -54,6 +54,7 @@ attributes:
 
 metrics:
   nagios.check.execution_time:
+    stability: development
     description: Check execution duration in seconds.
     enabled: true
     gauge:
@@ -61,6 +62,7 @@ metrics:
     unit: s
 
   nagios.check.last_check:
+    stability: development
     description: Unix timestamp of last check execution.
     enabled: false
     gauge:
@@ -68,6 +70,7 @@ metrics:
     unit: s
 
   nagios.check.latency:
+    stability: development
     description: Scheduling latency in seconds.
     enabled: false
     gauge:
@@ -75,6 +78,7 @@ metrics:
     unit: s
 
   nagios.check.state:
+    stability: development
     description: >-
       Nagios check state as an integer: 0=OK, 1=WARNING, 2=CRITICAL, 3=UNKNOWN.
     enabled: true
@@ -85,6 +89,7 @@ metrics:
       - nagios.state
 
   nagios.perfdata.critical:
+    stability: development
     description: Critical threshold upper bound from performance data.
     enabled: false
     gauge:
@@ -95,6 +100,7 @@ metrics:
       - nagios.perfdata.unit
 
   nagios.perfdata.max:
+    stability: development
     description: Maximum possible value from performance data.
     enabled: false
     gauge:
@@ -105,6 +111,7 @@ metrics:
       - nagios.perfdata.unit
 
   nagios.perfdata.min:
+    stability: development
     description: Minimum possible value from performance data.
     enabled: false
     gauge:
@@ -115,6 +122,7 @@ metrics:
       - nagios.perfdata.unit
 
   nagios.perfdata.value:
+    stability: development
     description: >-
       The performance data metric value from Nagios plugin output.
     enabled: true
@@ -126,6 +134,7 @@ metrics:
       - nagios.perfdata.unit
 
   nagios.perfdata.warning:
+    stability: development
     description: Warning threshold upper bound from performance data.
     enabled: false
     gauge:

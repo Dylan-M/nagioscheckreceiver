@@ -176,7 +176,7 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 
 		// Build resource and emit for this host/service
 		rb := s.mb.NewResourceBuilder()
-		rb.SetNagiosHostName(result.HostName)
+		rb.SetHostName(result.HostName)
 		rb.SetNagiosServiceDescription(result.ServiceDescription)
 		rb.SetNagiosSource(sourceName)
 		if result.CheckCommand != "" {

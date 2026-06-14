@@ -13,8 +13,8 @@ func TestResourceBuilder(t *testing.T) {
 		t.Run(tt, func(t *testing.T) {
 			cfg := loadResourceAttributesConfig(t, tt)
 			rb := NewResourceBuilder(cfg)
+			rb.SetHostName("host.name-val")
 			rb.SetNagiosCheckCommand("nagios.check.command-val")
-			rb.SetNagiosHostName("nagios.host.name-val")
 			rb.SetNagiosServiceDescription("nagios.service.description-val")
 			rb.SetNagiosSource("nagios.source-val")
 
@@ -33,15 +33,15 @@ func TestResourceBuilder(t *testing.T) {
 				assert.Failf(t, "unexpected test case: %s", tt)
 			}
 
-			val, ok := res.Attributes().Get("nagios.check.command")
+			val, ok := res.Attributes().Get("host.name")
+			assert.True(t, ok)
+			if ok {
+				assert.Equal(t, "host.name-val", val.Str())
+			}
+			val, ok = res.Attributes().Get("nagios.check.command")
 			assert.True(t, ok)
 			if ok {
 				assert.Equal(t, "nagios.check.command-val", val.Str())
-			}
-			val, ok = res.Attributes().Get("nagios.host.name")
-			assert.True(t, ok)
-			if ok {
-				assert.Equal(t, "nagios.host.name-val", val.Str())
 			}
 			val, ok = res.Attributes().Get("nagios.service.description")
 			assert.True(t, ok)

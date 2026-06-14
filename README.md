@@ -84,7 +84,7 @@ receivers:
 
 | Attribute                    | Description                                              |
 |------------------------------|----------------------------------------------------------|
-| `nagios.host.name`           | The Nagios host name                                     |
+| `host.name`                  | The monitored host name (OTel semantic convention)       |
 | `nagios.service.description` | The service check name                                   |
 | `nagios.check.command`       | Base check command (Livestatus/PNP4Nagios modes only)   |
 | `nagios.source`              | Ingestion mode: `"api"`, `"file"`, or `"livestatus"`   |
@@ -121,10 +121,8 @@ processors:
           - set(name, Concat([resource.attributes["nagios.service.description"], resource.attributes["nagios.perfdata.label"], name], ".")) where resource.attributes["nagios.perfdata.label"] != nil
       - context: resource
         statements:
-          # host.name per OTel semantic conventions (until the receiver emits it natively)
-          - set(attributes["host.name"], attributes["nagios.host.name"]) where attributes["nagios.host.name"] != nil
-          - delete_key(attributes, "nagios.host.name")
-          # drop only the attributes that were folded into the name (perfdata metrics only)
+          # drop only the attributes that were folded into the name (perfdata metrics only);
+          # host.name is emitted by the receiver and kept as the resource identifier.
           - delete_key(attributes, "nagios.service.description") where attributes["nagios.perfdata.label"] != nil
           - delete_key(attributes, "nagios.perfdata.label")
 

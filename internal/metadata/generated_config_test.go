@@ -38,8 +38,8 @@ func TestMetricsBuilderConfig(t *testing.T) {
 					NagiosPerfdataWarning:    MetricConfig{Enabled: true},
 				},
 				ResourceAttributes: ResourceAttributesConfig{
+					HostName:                 ResourceAttributeConfig{Enabled: true},
 					NagiosCheckCommand:       ResourceAttributeConfig{Enabled: true},
-					NagiosHostName:           ResourceAttributeConfig{Enabled: true},
 					NagiosServiceDescription: ResourceAttributeConfig{Enabled: true},
 					NagiosSource:             ResourceAttributeConfig{Enabled: true},
 				},
@@ -60,8 +60,8 @@ func TestMetricsBuilderConfig(t *testing.T) {
 					NagiosPerfdataWarning:    MetricConfig{Enabled: false},
 				},
 				ResourceAttributes: ResourceAttributesConfig{
+					HostName:                 ResourceAttributeConfig{Enabled: false},
 					NagiosCheckCommand:       ResourceAttributeConfig{Enabled: false},
-					NagiosHostName:           ResourceAttributeConfig{Enabled: false},
 					NagiosServiceDescription: ResourceAttributeConfig{Enabled: false},
 					NagiosSource:             ResourceAttributeConfig{Enabled: false},
 				},
@@ -99,8 +99,8 @@ func TestResourceAttributesConfig(t *testing.T) {
 		{
 			name: "all_set",
 			want: ResourceAttributesConfig{
+				HostName:                 ResourceAttributeConfig{Enabled: true},
 				NagiosCheckCommand:       ResourceAttributeConfig{Enabled: true},
-				NagiosHostName:           ResourceAttributeConfig{Enabled: true},
 				NagiosServiceDescription: ResourceAttributeConfig{Enabled: true},
 				NagiosSource:             ResourceAttributeConfig{Enabled: true},
 			},
@@ -108,8 +108,8 @@ func TestResourceAttributesConfig(t *testing.T) {
 		{
 			name: "none_set",
 			want: ResourceAttributesConfig{
+				HostName:                 ResourceAttributeConfig{Enabled: false},
 				NagiosCheckCommand:       ResourceAttributeConfig{Enabled: false},
-				NagiosHostName:           ResourceAttributeConfig{Enabled: false},
 				NagiosServiceDescription: ResourceAttributeConfig{Enabled: false},
 				NagiosSource:             ResourceAttributeConfig{Enabled: false},
 			},

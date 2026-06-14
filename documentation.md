@@ -16,38 +16,38 @@ metrics:
 
 Check execution duration in seconds.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| s | Gauge | Double |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| s | Gauge | Double | Development |
 
 ### nagios.check.state
 
 Nagios check state as an integer: 0=OK, 1=WARNING, 2=CRITICAL, 3=UNKNOWN.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| 1 | Gauge | Int |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Gauge | Int | Development |
 
 #### Attributes
 
-| Name | Description | Values | Optional |
+| Name | Description | Values | Requirement Level |
 | ---- | ----------- | ------ | -------- |
-| nagios.state | Human-readable state name: ok, warning, critical, unknown. | Str: ``ok``, ``warning``, ``critical``, ``unknown`` | false |
+| nagios.state | Human-readable state name: ok, warning, critical, unknown. | Str: ``ok``, ``warning``, ``critical``, ``unknown`` | Recommended |
 
 ### nagios.perfdata.value
 
 The performance data metric value from Nagios plugin output.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| 1 | Gauge | Double |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Gauge | Double | Development |
 
 #### Attributes
 
-| Name | Description | Values | Optional |
+| Name | Description | Values | Requirement Level |
 | ---- | ----------- | ------ | -------- |
-| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | false |
-| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | false |
+| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | Recommended |
+| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | Recommended |
 
 ## Optional Metrics
 
@@ -63,83 +63,83 @@ metrics:
 
 Unix timestamp of last check execution.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| s | Gauge | Int |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| s | Gauge | Int | Development |
 
 ### nagios.check.latency
 
 Scheduling latency in seconds.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| s | Gauge | Double |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| s | Gauge | Double | Development |
 
 ### nagios.perfdata.critical
 
 Critical threshold upper bound from performance data.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| 1 | Gauge | Double |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Gauge | Double | Development |
 
 #### Attributes
 
-| Name | Description | Values | Optional |
+| Name | Description | Values | Requirement Level |
 | ---- | ----------- | ------ | -------- |
-| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | false |
-| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | false |
+| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | Recommended |
+| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | Recommended |
 
 ### nagios.perfdata.max
 
 Maximum possible value from performance data.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| 1 | Gauge | Double |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Gauge | Double | Development |
 
 #### Attributes
 
-| Name | Description | Values | Optional |
+| Name | Description | Values | Requirement Level |
 | ---- | ----------- | ------ | -------- |
-| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | false |
-| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | false |
+| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | Recommended |
+| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | Recommended |
 
 ### nagios.perfdata.min
 
 Minimum possible value from performance data.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| 1 | Gauge | Double |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Gauge | Double | Development |
 
 #### Attributes
 
-| Name | Description | Values | Optional |
+| Name | Description | Values | Requirement Level |
 | ---- | ----------- | ------ | -------- |
-| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | false |
-| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | false |
+| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | Recommended |
+| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | Recommended |
 
 ### nagios.perfdata.warning
 
 Warning threshold upper bound from performance data.
 
-| Unit | Metric Type | Value Type |
-| ---- | ----------- | ---------- |
-| 1 | Gauge | Double |
+| Unit | Metric Type | Value Type | Stability |
+| ---- | ----------- | ---------- | --------- |
+| 1 | Gauge | Double | Development |
 
 #### Attributes
 
-| Name | Description | Values | Optional |
+| Name | Description | Values | Requirement Level |
 | ---- | ----------- | ------ | -------- |
-| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | false |
-| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | false |
+| nagios.perfdata.label | The performance data metric label from Nagios plugin output. | Any Str | Recommended |
+| nagios.perfdata.unit | The OTel-mapped unit of measurement for this perfdata metric. | Any Str | Recommended |
 
 ## Resource Attributes
 
 | Name | Description | Values | Enabled |
 | ---- | ----------- | ------ | ------- |
+| host.name | The name of the host the Nagios check targets (OTel semantic convention). | Any Str | true |
 | nagios.check.command | The base check command name (e.g., "check_http"), with arguments stripped. Only present when the ingestion mode provides it (Livestatus and PNP4Nagios file modes). | Any Str | true |
-| nagios.host.name | The Nagios host name. | Any Str | true |
 | nagios.service.description | The Nagios service check name. | Any Str | true |
 | nagios.source | Ingestion mode: "api", "file", or "livestatus". | Any Str | true |

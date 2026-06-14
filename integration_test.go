@@ -59,7 +59,7 @@ func resourceAttrs(rm pmetric.ResourceMetrics) map[string]string {
 func findResourceByHost(md pmetric.Metrics, host, service string) (pmetric.ResourceMetrics, bool) {
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
 		rm := md.ResourceMetrics().At(i)
-		h, hOk := rm.Resource().Attributes().Get("nagios.host.name")
+		h, hOk := rm.Resource().Attributes().Get("host.name")
 		s, sOk := rm.Resource().Attributes().Get("nagios.service.description")
 		if hOk && sOk && h.Str() == host && s.Str() == service {
 			return rm, true

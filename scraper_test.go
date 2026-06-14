@@ -55,7 +55,7 @@ func TestScraper_Scrape(t *testing.T) {
 	rm := md.ResourceMetrics().At(0)
 	attrs := rm.Resource().Attributes()
 
-	hostVal, ok := attrs.Get("nagios.host.name")
+	hostVal, ok := attrs.Get("host.name")
 	require.True(t, ok)
 	assert.Equal(t, "webserver01", hostVal.Str())
 
