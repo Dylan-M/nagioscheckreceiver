@@ -23,24 +23,24 @@ func TestLivestatusClient_Collect(t *testing.T) {
 	// Start a mock Unix socket server
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		// Read the query (we don't validate it in this test)
 		buf := make([]byte, 4096)
-		conn.Read(buf)
+		_, _ = conn.Read(buf)
 
 		// Send mock response: tab-separated fields matching our query columns
 		// host_name, description, check_command, state, perf_data, plugin_output, last_check, execution_time, latency
 		response := "webserver01\tHTTP Check\tcheck_http!-p 80\t0\ttime=0.001s;;;0;10 size=3302B;;;0\tHTTP OK\t1520553350\t0.001\t0.05\n"
 		response += "dbserver01\tMySQL\tcheck_mysql\t2\ttime=5.0s;3;5\tMySQL CRITICAL\t1520553400\t5.0\t0.01\n"
-		fmt.Fprint(conn, response)
+		_, _ = fmt.Fprint(conn, response)
 	}()
 
 	cfg := &LivestatusConfig{
@@ -194,20 +194,20 @@ func TestLivestatusClient_TCP(t *testing.T) {
 	// Start a mock TCP server
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		buf := make([]byte, 4096)
-		conn.Read(buf)
+		_, _ = conn.Read(buf)
 
 		response := "host01\tPing\tcheck_ping\t0\trta=0.5ms;100;500\tPING OK\t1520553350\t0.001\t0.01\n"
-		fmt.Fprint(conn, response)
+		_, _ = fmt.Fprint(conn, response)
 	}()
 
 	cfg := &LivestatusConfig{

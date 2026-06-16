@@ -72,7 +72,7 @@ func TestAPIClient_Collect(t *testing.T) {
 		assert.Equal(t, "secret", password)
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(sampleServiceListResponse))
+		_, _ = w.Write([]byte(sampleServiceListResponse))
 	}))
 	defer server.Close()
 
@@ -122,7 +122,7 @@ func TestAPIClient_Collect(t *testing.T) {
 func TestAPIClient_ErrorResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"format_version": 0,
 			"result": {
 				"type_code": 4,
@@ -151,7 +151,7 @@ func TestAPIClient_AuthFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Nagios Access"`)
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("<html>Unauthorized</html>"))
+		_, _ = w.Write([]byte("<html>Unauthorized</html>"))
 	}))
 	defer server.Close()
 

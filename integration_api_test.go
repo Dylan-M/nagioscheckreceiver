@@ -28,7 +28,7 @@ func basicAuthServer() *httptest.Server {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		w.Write([]byte(fullAPIResponse))
+		_, _ = w.Write([]byte(fullAPIResponse))
 	}))
 }
 
@@ -73,19 +73,19 @@ func TestIntegration_APIMode_Unauthorized(t *testing.T) {
 // API mode over TLS with insecure_skip_verify, building the client via the real start() path.
 func TestIntegration_APIMode_TLS(t *testing.T) {
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(fullAPIResponse))
+		_, _ = w.Write([]byte(fullAPIResponse))
 	}))
 	defer server.Close()
 
 	cfg := &Config{MetricsBuilderConfig: allMetricsEnabled(), API: &APIConfig{
 		ClientConfig: confighttp.ClientConfig{Endpoint: server.URL},
 	}}
-	cfg.API.ClientConfig.TLS.InsecureSkipVerify = true
+	cfg.API.TLS.InsecureSkipVerify = true
 
 	params := receivertest.NewNopSettings(component.MustNewType(typeStr))
 	s := newNagiosScraper(params, cfg)
 	require.NoError(t, s.start(context.Background(), componenttest.NewNopHost()))
-	defer s.shutdown(context.Background())
+	defer func() { _ = s.shutdown(context.Background()) }()
 
 	md, err := s.scrape(context.Background())
 	require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestIntegration_APIMode_Retry(t *testing.T) {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
-		w.Write([]byte(fullAPIResponse))
+		_, _ = w.Write([]byte(fullAPIResponse))
 	}))
 	defer server.Close()
 

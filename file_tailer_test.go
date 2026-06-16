@@ -33,7 +33,7 @@ func TestFileTailer_DefaultFormat(t *testing.T) {
 
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// First collect should return nothing (we seeked to end)
 	results, err := tailer.collect(context.Background())
@@ -45,7 +45,7 @@ func TestFileTailer_DefaultFormat(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.WriteString("[SERVICEPERFDATA]\t1520553400\tdb01\tMySQL\tOK\tMySQL OK\tuptime=12345s\n")
 	require.NoError(t, err)
-	f.Close()
+	_ = f.Close()
 
 	// Second collect should return the new line
 	results, err = tailer.collect(context.Background())
@@ -72,7 +72,7 @@ func TestFileTailer_PNP4NagiosFormat(t *testing.T) {
 	// Start with no file
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// Create file with PNP4Nagios format data
 	line := "HOSTNAME::webserver01\tSERVICEDESC::HTTP Check\tSERVICESTATE::OK\tSERVICEOUTPUT::HTTP OK\tSERVICEPERFDATA::time=0.001s;;;0;10\tSERVICECHECKCOMMAND::check_http!-p 80\n"
@@ -105,7 +105,7 @@ func TestFileTailer_HostPerfdataDefault(t *testing.T) {
 	// Start with no files
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// Create service and host files
 	svcLine := "[SERVICEPERFDATA]\t1\thost1\tsvc1\tOK\tout1\tperf1=1\n"
@@ -153,7 +153,7 @@ func TestFileTailer_HostPerfdataPNP4Nagios(t *testing.T) {
 
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	hostLine := "HOSTNAME::router01\tHOSTSTATE::UP\tHOSTOUTPUT::PING OK\tHOSTPERFDATA::rta=0.5ms;100;500\tHOSTCHECKCOMMAND::check_ping!100,20%!500,60%\n"
 	require.NoError(t, os.WriteFile(hostFile, []byte(hostLine), 0644))
@@ -187,14 +187,14 @@ func TestFileTailer_Rotation(t *testing.T) {
 
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// Write data to original file
 	f, err := os.OpenFile(perfFile, os.O_APPEND|os.O_WRONLY, 0644)
 	require.NoError(t, err)
 	_, err = f.WriteString("[SERVICEPERFDATA]\t1\thost1\tsvc1\tOK\tout1\tperf1=1\n")
 	require.NoError(t, err)
-	f.Close()
+	_ = f.Close()
 
 	// Simulate rotation: rename old file and create new one
 	require.NoError(t, os.Rename(perfFile, perfFile+".old"))

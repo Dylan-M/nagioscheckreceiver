@@ -47,7 +47,7 @@ func TestFileTailer_SkipsUnparseableLines(t *testing.T) {
 	tailer := newFileTailer(cfg, zaptest.NewLogger(t))
 	require.NoError(t, os.WriteFile(svcFile, []byte(""), 0644))
 	require.NoError(t, tailer.start(context.Background(), nil))
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// one good line, one missing HOSTNAME (skipped with a warning, not an error)
 	appendToFile(t, svcFile, "GARBAGE::nope\tSERVICEPERFDATA::x=1\n")
@@ -66,7 +66,7 @@ func TestFileTailer_DetectsRotation(t *testing.T) {
 	tailer := newFileTailer(cfg, zaptest.NewLogger(t))
 	require.NoError(t, os.WriteFile(svcFile, []byte(""), 0644))
 	require.NoError(t, tailer.start(context.Background(), nil))
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	appendToFile(t, svcFile, "HOSTNAME::before\tSERVICEDESC::s\tSERVICESTATE::OK\tSERVICEPERFDATA::x=1\n")
 	results, err := tailer.collect(context.Background())

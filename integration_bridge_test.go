@@ -30,7 +30,7 @@ var wantTS = pcommon.NewTimestampFromTime(time.Unix(1520553350, 0))
 // API mode stamps data points at last_check (last_check is reported in ms by the CGI).
 func TestIntegration_TimestampIsLastCheck_API(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(fullAPIResponse))
+		_, _ = w.Write([]byte(fullAPIResponse))
 	}))
 	defer server.Close()
 
@@ -56,16 +56,16 @@ func TestIntegration_TimestampIsLastCheck_Livestatus(t *testing.T) {
 	socketPath := filepath.Join(dir, "live")
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		buf := make([]byte, 4096)
-		conn.Read(buf)
-		fmt.Fprint(conn, "webserver01\tHTTP Check\tcheck_http\t0\ttime=0.001s;;;0;10\tHTTP OK\t1520553350\t0.001\t0.05\n")
+		_, _ = conn.Read(buf)
+		_, _ = fmt.Fprint(conn, "webserver01\tHTTP Check\tcheck_http\t0\ttime=0.001s;;;0;10\tHTTP OK\t1520553350\t0.001\t0.05\n")
 	}()
 
 	cfg := &Config{MetricsBuilderConfig: allMetricsEnabled(), Livestatus: &LivestatusConfig{Address: socketPath, Network: "unix"}}
@@ -95,7 +95,7 @@ func TestIntegration_TimestampIsLastCheck_File(t *testing.T) {
 	require.NoError(t, os.WriteFile(svcFile, []byte(""), 0644))
 	require.NoError(t, tailer.start(context.Background(), nil))
 	s.source = tailer
-	defer s.shutdown(context.Background())
+	defer func() { _ = s.shutdown(context.Background()) }()
 
 	appendToFile(t, svcFile, "DATATYPE::SERVICEPERFDATA\tTIMET::1520553350\tHOSTNAME::webserver01\tSERVICEDESC::HTTP Check\tSERVICESTATE::OK\tSERVICEPERFDATA::time=0.001s;;;0;10\n")
 
@@ -113,7 +113,7 @@ func TestIntegration_TimestampIsLastCheck_File(t *testing.T) {
 // A second scrape that sees the same last_check must not re-emit (emit-on-change).
 func TestIntegration_EmitOnChange_API(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Write([]byte(fullAPIResponse))
+		_, _ = w.Write([]byte(fullAPIResponse))
 	}))
 	defer server.Close()
 

@@ -35,7 +35,7 @@ func TestIntegration_FileMode_DefaultFormat(t *testing.T) {
 	require.NoError(t, os.WriteFile(hostFile, []byte(""), 0644))
 	require.NoError(t, tailer.start(context.Background(), nil))
 	s.source = tailer
-	defer s.shutdown(context.Background())
+	defer func() { _ = s.shutdown(context.Background()) }()
 
 	appendToFile(t, svcFile, "[SERVICEPERFDATA]\t1520553350\twebserver01\tHTTP Check\tOK\tHTTP OK\ttime=0.001s;;;0;10 size=3302B;;;0\n")
 	appendToFile(t, svcFile, "[SERVICEPERFDATA]\t1520553350\tdbserver01\tMySQL\tCRITICAL\tMySQL DOWN\ttime=5.0s;3;5\n")
@@ -77,16 +77,16 @@ func TestIntegration_FileMode_DefaultFormat(t *testing.T) {
 func TestIntegration_LivestatusMode_TCP(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		buf := make([]byte, 4096)
-		conn.Read(buf)
-		fmt.Fprint(conn, "webserver01\tHTTP Check\tcheck_http\t0\ttime=0.001s;;;0;10\tHTTP OK\t1520553350\t0.001\t0.05\n")
+		_, _ = conn.Read(buf)
+		_, _ = fmt.Fprint(conn, "webserver01\tHTTP Check\tcheck_http\t0\ttime=0.001s;;;0;10\tHTTP OK\t1520553350\t0.001\t0.05\n")
 	}()
 
 	cfg := &Config{

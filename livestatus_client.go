@@ -64,7 +64,7 @@ func (c *livestatusClient) collect(ctx context.Context) ([]NagiosCheckResult, er
 	if err != nil {
 		return nil, fmt.Errorf("connecting to livestatus at %s/%s: %w", c.cfg.Network, c.cfg.Address, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Bound all socket I/O so a reachable-but-unresponsive server can't hang the
 	// scrape goroutine. Context cancellation does not interrupt a raw conn read,
@@ -84,10 +84,10 @@ func (c *livestatusClient) collect(ctx context.Context) ([]NagiosCheckResult, er
 
 	// Close write side to signal end of query
 	if tc, ok := conn.(*net.TCPConn); ok {
-		tc.CloseWrite()
+		_ = tc.CloseWrite()
 	}
 	if uc, ok := conn.(*net.UnixConn); ok {
-		uc.CloseWrite()
+		_ = uc.CloseWrite()
 	}
 
 	// Read response

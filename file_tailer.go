@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -67,8 +68,8 @@ func initTracker(t *trackedFile, logger *zap.Logger) error {
 	}
 
 	// Seek to end so we only read new data from this point forward
-	if _, err := file.Seek(0, os.SEEK_END); err != nil {
-		file.Close()
+	if _, err := file.Seek(0, io.SeekEnd); err != nil {
+		_ = file.Close()
 		return fmt.Errorf("seeking to end of file: %w", err)
 	}
 
@@ -179,7 +180,7 @@ func readNewLinesFromTracker(t *trackedFile, logger *zap.Logger) ([]string, erro
 		if t.file != nil {
 			lines, _ := readLines(t.file)
 			allLines = append(allLines, lines...)
-			t.file.Close()
+			_ = t.file.Close()
 			t.file = nil
 		}
 
@@ -240,13 +241,13 @@ func openAndGetInode(path string) (*os.File, uint64, error) {
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, 0, err
 	}
 
 	sysStat, ok := stat.Sys().(*syscall.Stat_t)
 	if !ok {
-		file.Close()
+		_ = file.Close()
 		return nil, 0, fmt.Errorf("unable to get inode for %s", path)
 	}
 
