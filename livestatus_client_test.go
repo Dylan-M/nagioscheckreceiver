@@ -9,6 +9,7 @@ import (
 	"net"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -86,6 +87,50 @@ func TestLivestatusClient_ConnectionRefused(t *testing.T) {
 	_, err := client.collect(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "connecting to livestatus")
+}
+
+func TestLivestatusClient_HangingServerRespectsDeadline(t *testing.T) {
+	// Server that accepts the connection but never sends a response, simulating
+	// a livestatus endpoint that is reachable but hung. Without a read deadline,
+	// collect would block on the socket read forever and hang the scrape goroutine.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = listener.Close() }()
+
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		// Hold the connection open without responding until the test ends.
+		<-stop
+		_ = conn.Close()
+	}()
+
+	cfg := &LivestatusConfig{
+		Address: listener.Addr().String(),
+		Network: "tcp",
+	}
+	client := newLivestatusClient(cfg, zaptest.NewLogger(t))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, collectErr := client.collect(ctx)
+		done <- collectErr
+	}()
+
+	select {
+	case collectErr := <-done:
+		// collect returned because it honored the deadline on the socket.
+		require.Error(t, collectErr, "expected a read-timeout error from the hung server")
+	case <-time.After(2 * time.Second):
+		t.Fatal("collect did not return: it ignored the context deadline and hung on a non-responsive server")
+	}
 }
 
 func TestParseLivestatusLine(t *testing.T) {

@@ -10,10 +10,16 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 )
+
+// defaultLivestatusTimeout bounds socket I/O when the scrape context carries no
+// deadline (the controller's timeout defaults to 0, i.e. no deadline). It keeps
+// a reachable-but-unresponsive livestatus server from hanging the scrape.
+const defaultLivestatusTimeout = 10 * time.Second
 
 // livestatusClient implements dataSource for the MK Livestatus socket mode.
 type livestatusClient struct {
@@ -59,6 +65,16 @@ func (c *livestatusClient) collect(ctx context.Context) ([]NagiosCheckResult, er
 		return nil, fmt.Errorf("connecting to livestatus at %s/%s: %w", c.cfg.Network, c.cfg.Address, err)
 	}
 	defer conn.Close()
+
+	// Bound all socket I/O so a reachable-but-unresponsive server can't hang the
+	// scrape goroutine. Context cancellation does not interrupt a raw conn read,
+	// so honor the scrape context's deadline when set (configured controller
+	// timeout) and otherwise fall back to a sane default.
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		deadline = time.Now().Add(defaultLivestatusTimeout)
+	}
+	_ = conn.SetDeadline(deadline)
 
 	// Send query
 	_, err = conn.Write([]byte(livestatusQuery))
