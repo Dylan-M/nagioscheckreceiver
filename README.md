@@ -57,6 +57,7 @@ receivers:
     livestatus:
       address: "/var/run/nagios/rw/live"
       network: "unix"  # or "tcp" with address like "nagios-host:6557"
+      timeout: 10s     # optional; bounds a single socket query/response (default 10s)
 ```
 
 ## Metrics

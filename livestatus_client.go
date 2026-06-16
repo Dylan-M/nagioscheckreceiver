@@ -68,11 +68,15 @@ func (c *livestatusClient) collect(ctx context.Context) ([]NagiosCheckResult, er
 
 	// Bound all socket I/O so a reachable-but-unresponsive server can't hang the
 	// scrape goroutine. Context cancellation does not interrupt a raw conn read,
-	// so honor the scrape context's deadline when set (configured controller
-	// timeout) and otherwise fall back to a sane default.
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Now().Add(defaultLivestatusTimeout)
+	// so derive an absolute deadline from the configured timeout (or the default
+	// when unset) and cap it with the scrape context's deadline when one is set.
+	timeout := c.cfg.Timeout
+	if timeout <= 0 {
+		timeout = defaultLivestatusTimeout
+	}
+	deadline := time.Now().Add(timeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
 	}
 	_ = conn.SetDeadline(deadline)
 

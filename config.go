@@ -6,6 +6,7 @@ package nagioscheckreceiver
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
@@ -60,6 +61,11 @@ type LivestatusConfig struct {
 
 	// Network is "unix" or "tcp".
 	Network string `mapstructure:"network"`
+
+	// Timeout bounds a single query/response exchange on the socket. When unset
+	// (zero), a default of 10s applies. The scrape controller's timeout, when
+	// configured, further caps the effective deadline. Must not be negative.
+	Timeout time.Duration `mapstructure:"timeout"`
 }
 
 // Validate checks that the configuration is valid.
@@ -134,6 +140,9 @@ func validateLivestatusConfig(cfg *LivestatusConfig) error {
 		return errors.New("network is required: \"unix\" or \"tcp\"")
 	default:
 		return fmt.Errorf("unsupported network %q: must be \"unix\" or \"tcp\"", cfg.Network)
+	}
+	if cfg.Timeout < 0 {
+		return errors.New("timeout must not be negative")
 	}
 	return nil
 }

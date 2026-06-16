@@ -133,6 +133,47 @@ func TestLivestatusClient_HangingServerRespectsDeadline(t *testing.T) {
 	}
 }
 
+func TestLivestatusClient_ConfiguredTimeoutBoundsRead(t *testing.T) {
+	// With no scrape-context deadline, a configured livestatus timeout must still
+	// bound the socket read so a hung server cannot block the scrape.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = listener.Close() }()
+
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		<-stop
+		_ = conn.Close()
+	}()
+
+	cfg := &LivestatusConfig{
+		Address: listener.Addr().String(),
+		Network: "tcp",
+		Timeout: 200 * time.Millisecond,
+	}
+	client := newLivestatusClient(cfg, zaptest.NewLogger(t))
+
+	done := make(chan error, 1)
+	go func() {
+		// context.Background carries no deadline, so only the configured timeout
+		// can bound the read.
+		_, collectErr := client.collect(context.Background())
+		done <- collectErr
+	}()
+
+	select {
+	case collectErr := <-done:
+		require.Error(t, collectErr, "expected a read-timeout error from the hung server")
+	case <-time.After(2 * time.Second):
+		t.Fatal("collect did not return: the configured livestatus timeout was not applied")
+	}
+}
+
 func TestParseLivestatusLine(t *testing.T) {
 	tests := []struct {
 		name    string
