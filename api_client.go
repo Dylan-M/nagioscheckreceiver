@@ -98,13 +98,16 @@ func (c *apiClient) fetchServiceList(ctx context.Context) ([]NagiosCheckResult, 
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("authentication failed (HTTP 401)")
-	}
-
+	// Read the body before inspecting status so it is always fully drained,
+	// letting the HTTP transport reuse the keep-alive connection on every path
+	// (including 401), rather than dropping it on an early return.
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, &transientError{err: fmt.Errorf("reading response body: %w", err)}
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("authentication failed (HTTP 401)")
 	}
 
 	if resp.StatusCode >= 500 {
