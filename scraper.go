@@ -51,13 +51,19 @@ type nagiosScraper struct {
 	logger *zap.Logger
 	mb     *metadata.MetricsBuilder
 	source dataSource
+
+	// lastSeen tracks the most recent last_check emitted per host+service so an
+	// unchanged check isn't re-emitted on every scrape. Accessed only from scrape(),
+	// which the scraper controller calls serially, so it needs no lock.
+	lastSeen map[string]int64
 }
 
 func newNagiosScraper(params receiver.Settings, cfg *Config) *nagiosScraper {
 	return &nagiosScraper{
-		cfg:    cfg,
-		logger: params.Logger,
-		mb:     metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, params),
+		cfg:      cfg,
+		logger:   params.Logger,
+		mb:       metadata.NewMetricsBuilder(cfg.MetricsBuilderConfig, params),
+		lastSeen: make(map[string]int64),
 	}
 }
 
@@ -105,17 +111,37 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 	now := pcommon.NewTimestampFromTime(time.Now())
 
 	for _, result := range results {
+		// A Nagios check produces all of its metrics (state, timing, and every
+		// perfdata value) from one plugin execution that shares a single last_check.
+		// Skip the whole check when its last_check is unchanged since the previous
+		// scrape, so a scrape interval shorter than the check interval doesn't
+		// re-emit the same measurement.
+		if result.LastCheck > 0 {
+			key := result.HostName + "\x00" + result.ServiceDescription
+			if prev, seen := s.lastSeen[key]; seen && prev == result.LastCheck {
+				continue
+			}
+			s.lastSeen[key] = result.LastCheck
+		}
+
+		// Stamp datapoints at the check's actual time, falling back to scrape time
+		// only when the source didn't provide a last_check.
+		ts := now
+		if result.LastCheck > 0 {
+			ts = pcommon.NewTimestampFromTime(time.Unix(result.LastCheck, 0))
+		}
+
 		// Record static check metrics
 		stateAttr, ok := stateToAttribute[result.State]
 		if !ok {
 			stateAttr = metadata.AttributeNagiosStateUnknown
 		}
-		s.mb.RecordNagiosCheckStateDataPoint(now, int64(result.State), stateAttr)
-		s.mb.RecordNagiosCheckExecutionTimeDataPoint(now, result.ExecutionTime)
-		s.mb.RecordNagiosCheckLatencyDataPoint(now, result.Latency)
+		s.mb.RecordNagiosCheckStateDataPoint(ts, int64(result.State), stateAttr)
+		s.mb.RecordNagiosCheckExecutionTimeDataPoint(ts, result.ExecutionTime)
+		s.mb.RecordNagiosCheckLatencyDataPoint(ts, result.Latency)
 
 		if result.LastCheck > 0 {
-			s.mb.RecordNagiosCheckLastCheckDataPoint(now, result.LastCheck)
+			s.mb.RecordNagiosCheckLastCheckDataPoint(ts, result.LastCheck)
 		}
 
 		// Parse and record perfdata metrics
@@ -131,26 +157,26 @@ func (s *nagiosScraper) scrape(ctx context.Context) (pmetric.Metrics, error) {
 			}
 
 			for _, pm := range perfMetrics {
-				s.mb.RecordNagiosPerfdataValueDataPoint(now, pm.Value, pm.Label, pm.Unit)
+				s.mb.RecordNagiosPerfdataValueDataPoint(ts, pm.Value, pm.Label, pm.Unit)
 
 				if pm.Warning != nil {
-					s.mb.RecordNagiosPerfdataWarningDataPoint(now, *pm.Warning, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataWarningDataPoint(ts, *pm.Warning, pm.Label, pm.Unit)
 				}
 				if pm.Critical != nil {
-					s.mb.RecordNagiosPerfdataCriticalDataPoint(now, *pm.Critical, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataCriticalDataPoint(ts, *pm.Critical, pm.Label, pm.Unit)
 				}
 				if pm.Min != nil {
-					s.mb.RecordNagiosPerfdataMinDataPoint(now, *pm.Min, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataMinDataPoint(ts, *pm.Min, pm.Label, pm.Unit)
 				}
 				if pm.Max != nil {
-					s.mb.RecordNagiosPerfdataMaxDataPoint(now, *pm.Max, pm.Label, pm.Unit)
+					s.mb.RecordNagiosPerfdataMaxDataPoint(ts, *pm.Max, pm.Label, pm.Unit)
 				}
 			}
 		}
 
 		// Build resource and emit for this host/service
 		rb := s.mb.NewResourceBuilder()
-		rb.SetNagiosHostName(result.HostName)
+		rb.SetHostName(result.HostName)
 		rb.SetNagiosServiceDescription(result.ServiceDescription)
 		rb.SetNagiosSource(sourceName)
 		if result.CheckCommand != "" {

@@ -30,7 +30,7 @@ func newAPIClient(cfg *APIConfig, logger *zap.Logger) *apiClient {
 }
 
 func (c *apiClient) start(ctx context.Context, host component.Host) error {
-	httpClient, err := c.cfg.ClientConfig.ToClient(ctx, host.GetExtensions(), component.TelemetrySettings{})
+	httpClient, err := c.cfg.ToClient(ctx, host.GetExtensions(), component.TelemetrySettings{})
 	if err != nil {
 		return fmt.Errorf("creating HTTP client: %w", err)
 	}
@@ -96,15 +96,18 @@ func (c *apiClient) fetchServiceList(ctx context.Context) ([]NagiosCheckResult, 
 	if err != nil {
 		return nil, &transientError{err: fmt.Errorf("executing request: %w", err)}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, fmt.Errorf("authentication failed (HTTP 401)")
-	}
-
+	// Read the body before inspecting status so it is always fully drained,
+	// letting the HTTP transport reuse the keep-alive connection on every path
+	// (including 401), rather than dropping it on an early return.
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, &transientError{err: fmt.Errorf("reading response body: %w", err)}
+	}
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("authentication failed (HTTP 401)")
 	}
 
 	if resp.StatusCode >= 500 {

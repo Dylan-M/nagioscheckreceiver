@@ -59,7 +59,7 @@ func resourceAttrs(rm pmetric.ResourceMetrics) map[string]string {
 func findResourceByHost(md pmetric.Metrics, host, service string) (pmetric.ResourceMetrics, bool) {
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
 		rm := md.ResourceMetrics().At(i)
-		h, hOk := rm.Resource().Attributes().Get("nagios.host.name")
+		h, hOk := rm.Resource().Attributes().Get("host.name")
 		s, sOk := rm.Resource().Attributes().Get("nagios.service.description")
 		if hOk && sOk && h.Str() == host && s.Str() == service {
 			return rm, true
@@ -86,7 +86,7 @@ func appendToFile(t *testing.T, path, data string) {
 	require.NoError(t, err)
 	_, err = f.WriteString(data)
 	require.NoError(t, err)
-	f.Close()
+	_ = f.Close()
 }
 
 // --- Integration: API Mode ---
@@ -94,7 +94,7 @@ func appendToFile(t *testing.T, path, data string) {
 func TestIntegration_APIMode(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(fullAPIResponse))
+		_, _ = w.Write([]byte(fullAPIResponse))
 	}))
 	defer server.Close()
 
@@ -247,7 +247,7 @@ func TestIntegration_FileMode_PNP4Nagios(t *testing.T) {
 	require.NoError(t, os.WriteFile(hostFile, []byte(""), 0644))
 	require.NoError(t, tailer.start(context.Background(), nil))
 	s.source = tailer
-	defer s.shutdown(context.Background())
+	defer func() { _ = s.shutdown(context.Background()) }()
 
 	svcData := "HOSTNAME::webserver01\tSERVICEDESC::HTTP Check\tSERVICESTATE::OK\tSERVICEOUTPUT::HTTP OK\tSERVICEPERFDATA::time=0.001s;;;0;10 size=3302B;;;0\tSERVICECHECKCOMMAND::check_http!-p 80\n"
 	svcData += "HOSTNAME::dbserver01\tSERVICEDESC::MySQL\tSERVICESTATE::CRITICAL\tSERVICEOUTPUT::MySQL DOWN\tSERVICEPERFDATA::time=5.0s;3;5\tSERVICECHECKCOMMAND::check_mysql!-H db01\n"
@@ -319,21 +319,21 @@ func TestIntegration_LivestatusMode(t *testing.T) {
 
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		buf := make([]byte, 4096)
-		conn.Read(buf)
+		_, _ = conn.Read(buf)
 
 		lines := "webserver01\tHTTP Check\tcheck_http!-p 80\t0\ttime=0.001s;;;0;10 size=3302B;;;0\tHTTP OK\t1520553350\t0.001\t0.05\n"
 		lines += "webserver01\tDisk Usage\tcheck_disk!-w 20%\t1\t/=6789MB;7000;7500;0;8000\tDISK WARNING\t1520553300\t0.01\t0.02\n"
 		lines += "dbserver01\tMySQL\tcheck_mysql\t2\ttime=5.0s;3;5\tMySQL CRITICAL\t1520553400\t5.0\t0.01\n"
-		fmt.Fprint(conn, lines)
+		_, _ = fmt.Fprint(conn, lines)
 	}()
 
 	cfg := &Config{

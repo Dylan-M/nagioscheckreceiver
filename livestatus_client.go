@@ -10,10 +10,16 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 )
+
+// defaultLivestatusTimeout bounds socket I/O when the scrape context carries no
+// deadline (the controller's timeout defaults to 0, i.e. no deadline). It keeps
+// a reachable-but-unresponsive livestatus server from hanging the scrape.
+const defaultLivestatusTimeout = 10 * time.Second
 
 // livestatusClient implements dataSource for the MK Livestatus socket mode.
 type livestatusClient struct {
@@ -39,10 +45,11 @@ func (c *livestatusClient) shutdown(_ context.Context) error {
 // livestatusQuery is the LQL query to fetch service check results.
 // Uses custom separators to avoid semicolon collision with perfdata format:
 // Separators: 10 9 44 124
-//   10 = newline (row separator)
-//   9  = tab (column separator)
-//   44 = comma (list separator)
-//   124 = pipe (host list separator)
+//
+//	10 = newline (row separator)
+//	9  = tab (column separator)
+//	44 = comma (list separator)
+//	124 = pipe (host list separator)
 const livestatusQuery = `GET services
 Columns: host_name description check_command state perf_data plugin_output last_check execution_time latency
 Separators: 10 9 44 124
@@ -57,7 +64,21 @@ func (c *livestatusClient) collect(ctx context.Context) ([]NagiosCheckResult, er
 	if err != nil {
 		return nil, fmt.Errorf("connecting to livestatus at %s/%s: %w", c.cfg.Network, c.cfg.Address, err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
+
+	// Bound all socket I/O so a reachable-but-unresponsive server can't hang the
+	// scrape goroutine. Context cancellation does not interrupt a raw conn read,
+	// so derive an absolute deadline from the configured timeout (or the default
+	// when unset) and cap it with the scrape context's deadline when one is set.
+	timeout := c.cfg.Timeout
+	if timeout <= 0 {
+		timeout = defaultLivestatusTimeout
+	}
+	deadline := time.Now().Add(timeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	_ = conn.SetDeadline(deadline)
 
 	// Send query
 	_, err = conn.Write([]byte(livestatusQuery))
@@ -67,10 +88,10 @@ func (c *livestatusClient) collect(ctx context.Context) ([]NagiosCheckResult, er
 
 	// Close write side to signal end of query
 	if tc, ok := conn.(*net.TCPConn); ok {
-		tc.CloseWrite()
+		_ = tc.CloseWrite()
 	}
 	if uc, ok := conn.(*net.UnixConn); ok {
-		uc.CloseWrite()
+		_ = uc.CloseWrite()
 	}
 
 	// Read response

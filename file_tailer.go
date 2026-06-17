@@ -7,7 +7,9 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -66,8 +68,8 @@ func initTracker(t *trackedFile, logger *zap.Logger) error {
 	}
 
 	// Seek to end so we only read new data from this point forward
-	if _, err := file.Seek(0, os.SEEK_END); err != nil {
-		file.Close()
+	if _, err := file.Seek(0, io.SeekEnd); err != nil {
+		_ = file.Close()
 		return fmt.Errorf("seeking to end of file: %w", err)
 	}
 
@@ -178,7 +180,7 @@ func readNewLinesFromTracker(t *trackedFile, logger *zap.Logger) ([]string, erro
 		if t.file != nil {
 			lines, _ := readLines(t.file)
 			allLines = append(allLines, lines...)
-			t.file.Close()
+			_ = t.file.Close()
 			t.file = nil
 		}
 
@@ -239,13 +241,13 @@ func openAndGetInode(path string) (*os.File, uint64, error) {
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, 0, err
 	}
 
 	sysStat, ok := stat.Sys().(*syscall.Stat_t)
 	if !ok {
-		file.Close()
+		_ = file.Close()
 		return nil, 0, fmt.Errorf("unable to get inode for %s", path)
 	}
 
@@ -279,6 +281,7 @@ func parseDefaultLine(line string) (NagiosCheckResult, error) {
 		State:              parseNagiosState(parts[4]),
 		PluginOutput:       parts[5],
 		PerfData:           parts[6],
+		LastCheck:          parseTimet(parts[1]),
 	}, nil
 }
 
@@ -300,6 +303,7 @@ func parseDefaultHostLine(line string) (NagiosCheckResult, error) {
 		State:              parseNagiosState(parts[3]),
 		PluginOutput:       parts[4],
 		PerfData:           parts[5],
+		LastCheck:          parseTimet(parts[1]),
 	}, nil
 }
 
@@ -324,6 +328,7 @@ func parsePNP4NagiosLine(line string) (NagiosCheckResult, error) {
 		PluginOutput:       fields["SERVICEOUTPUT"],
 		PerfData:           fields["SERVICEPERFDATA"],
 		State:              parseNagiosState(fields["SERVICESTATE"]),
+		LastCheck:          parseTimet(fields["TIMET"]),
 	}
 
 	if cmd, ok := fields["SERVICECHECKCOMMAND"]; ok && cmd != "" {
@@ -351,6 +356,7 @@ func parsePNP4NagiosHostLine(line string) (NagiosCheckResult, error) {
 		PluginOutput:       fields["HOSTOUTPUT"],
 		PerfData:           fields["HOSTPERFDATA"],
 		State:              parseNagiosState(fields["HOSTSTATE"]),
+		LastCheck:          parseTimet(fields["TIMET"]),
 	}
 
 	if cmd, ok := fields["HOSTCHECKCOMMAND"]; ok && cmd != "" {
@@ -387,6 +393,12 @@ func parseNagiosState(s string) int {
 	default:
 		return 3 // UNKNOWN / UNREACHABLE
 	}
+}
+
+// parseTimet parses a Nagios $TIMET$ field (Unix seconds) into an int64, returning 0 if absent or unparseable.
+func parseTimet(s string) int64 {
+	t, _ := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+	return t
 }
 
 func truncate(s string, maxLen int) string {

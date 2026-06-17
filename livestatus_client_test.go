@@ -9,6 +9,7 @@ import (
 	"net"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,24 +23,24 @@ func TestLivestatusClient_Collect(t *testing.T) {
 	// Start a mock Unix socket server
 	listener, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		// Read the query (we don't validate it in this test)
 		buf := make([]byte, 4096)
-		conn.Read(buf)
+		_, _ = conn.Read(buf)
 
 		// Send mock response: tab-separated fields matching our query columns
 		// host_name, description, check_command, state, perf_data, plugin_output, last_check, execution_time, latency
 		response := "webserver01\tHTTP Check\tcheck_http!-p 80\t0\ttime=0.001s;;;0;10 size=3302B;;;0\tHTTP OK\t1520553350\t0.001\t0.05\n"
 		response += "dbserver01\tMySQL\tcheck_mysql\t2\ttime=5.0s;3;5\tMySQL CRITICAL\t1520553400\t5.0\t0.01\n"
-		fmt.Fprint(conn, response)
+		_, _ = fmt.Fprint(conn, response)
 	}()
 
 	cfg := &LivestatusConfig{
@@ -86,6 +87,91 @@ func TestLivestatusClient_ConnectionRefused(t *testing.T) {
 	_, err := client.collect(context.Background())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "connecting to livestatus")
+}
+
+func TestLivestatusClient_HangingServerRespectsDeadline(t *testing.T) {
+	// Server that accepts the connection but never sends a response, simulating
+	// a livestatus endpoint that is reachable but hung. Without a read deadline,
+	// collect would block on the socket read forever and hang the scrape goroutine.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = listener.Close() }()
+
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		// Hold the connection open without responding until the test ends.
+		<-stop
+		_ = conn.Close()
+	}()
+
+	cfg := &LivestatusConfig{
+		Address: listener.Addr().String(),
+		Network: "tcp",
+	}
+	client := newLivestatusClient(cfg, zaptest.NewLogger(t))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		_, collectErr := client.collect(ctx)
+		done <- collectErr
+	}()
+
+	select {
+	case collectErr := <-done:
+		// collect returned because it honored the deadline on the socket.
+		require.Error(t, collectErr, "expected a read-timeout error from the hung server")
+	case <-time.After(2 * time.Second):
+		t.Fatal("collect did not return: it ignored the context deadline and hung on a non-responsive server")
+	}
+}
+
+func TestLivestatusClient_ConfiguredTimeoutBoundsRead(t *testing.T) {
+	// With no scrape-context deadline, a configured livestatus timeout must still
+	// bound the socket read so a hung server cannot block the scrape.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = listener.Close() }()
+
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		conn, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		<-stop
+		_ = conn.Close()
+	}()
+
+	cfg := &LivestatusConfig{
+		Address: listener.Addr().String(),
+		Network: "tcp",
+		Timeout: 200 * time.Millisecond,
+	}
+	client := newLivestatusClient(cfg, zaptest.NewLogger(t))
+
+	done := make(chan error, 1)
+	go func() {
+		// context.Background carries no deadline, so only the configured timeout
+		// can bound the read.
+		_, collectErr := client.collect(context.Background())
+		done <- collectErr
+	}()
+
+	select {
+	case collectErr := <-done:
+		require.Error(t, collectErr, "expected a read-timeout error from the hung server")
+	case <-time.After(2 * time.Second):
+		t.Fatal("collect did not return: the configured livestatus timeout was not applied")
+	}
 }
 
 func TestParseLivestatusLine(t *testing.T) {
@@ -149,20 +235,20 @@ func TestLivestatusClient_TCP(t *testing.T) {
 	// Start a mock TCP server
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 
 		buf := make([]byte, 4096)
-		conn.Read(buf)
+		_, _ = conn.Read(buf)
 
 		response := "host01\tPing\tcheck_ping\t0\trta=0.5ms;100;500\tPING OK\t1520553350\t0.001\t0.01\n"
-		fmt.Fprint(conn, response)
+		_, _ = fmt.Fprint(conn, response)
 	}()
 
 	cfg := &LivestatusConfig{

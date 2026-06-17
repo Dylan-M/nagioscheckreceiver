@@ -9,8 +9,7 @@ import (
 
 // MetricConfig provides common config for a particular metric.
 type MetricConfig struct {
-	Enabled bool `mapstructure:"enabled"`
-
+	Enabled          bool `mapstructure:"enabled"`
 	enabledSetByUser bool
 }
 
@@ -18,10 +17,12 @@ func (ms *MetricConfig) Unmarshal(parser *confmap.Conf) error {
 	if parser == nil {
 		return nil
 	}
+
 	err := parser.Unmarshal(ms)
 	if err != nil {
 		return err
 	}
+
 	ms.enabledSetByUser = parser.IsSet("enabled")
 	return nil
 }
@@ -99,18 +100,18 @@ func (rac *ResourceAttributeConfig) Unmarshal(parser *confmap.Conf) error {
 
 // ResourceAttributesConfig provides config for nagioscheck resource attributes.
 type ResourceAttributesConfig struct {
+	HostName                 ResourceAttributeConfig `mapstructure:"host.name"`
 	NagiosCheckCommand       ResourceAttributeConfig `mapstructure:"nagios.check.command"`
-	NagiosHostName           ResourceAttributeConfig `mapstructure:"nagios.host.name"`
 	NagiosServiceDescription ResourceAttributeConfig `mapstructure:"nagios.service.description"`
 	NagiosSource             ResourceAttributeConfig `mapstructure:"nagios.source"`
 }
 
 func DefaultResourceAttributesConfig() ResourceAttributesConfig {
 	return ResourceAttributesConfig{
-		NagiosCheckCommand: ResourceAttributeConfig{
+		HostName: ResourceAttributeConfig{
 			Enabled: true,
 		},
-		NagiosHostName: ResourceAttributeConfig{
+		NagiosCheckCommand: ResourceAttributeConfig{
 			Enabled: true,
 		},
 		NagiosServiceDescription: ResourceAttributeConfig{

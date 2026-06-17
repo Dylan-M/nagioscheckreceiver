@@ -26,7 +26,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 	rcvCfg, ok := cfg.(*Config)
 	require.True(t, ok)
-	assert.Equal(t, defaultCollectionInterval, rcvCfg.ControllerConfig.CollectionInterval)
+	assert.Equal(t, defaultCollectionInterval, rcvCfg.CollectionInterval)
 	assert.Nil(t, rcvCfg.API)
 	assert.Nil(t, rcvCfg.File)
 	assert.Nil(t, rcvCfg.Livestatus)

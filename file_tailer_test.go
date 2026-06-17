@@ -33,7 +33,7 @@ func TestFileTailer_DefaultFormat(t *testing.T) {
 
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// First collect should return nothing (we seeked to end)
 	results, err := tailer.collect(context.Background())
@@ -45,7 +45,7 @@ func TestFileTailer_DefaultFormat(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.WriteString("[SERVICEPERFDATA]\t1520553400\tdb01\tMySQL\tOK\tMySQL OK\tuptime=12345s\n")
 	require.NoError(t, err)
-	f.Close()
+	_ = f.Close()
 
 	// Second collect should return the new line
 	results, err = tailer.collect(context.Background())
@@ -72,7 +72,7 @@ func TestFileTailer_PNP4NagiosFormat(t *testing.T) {
 	// Start with no file
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// Create file with PNP4Nagios format data
 	line := "HOSTNAME::webserver01\tSERVICEDESC::HTTP Check\tSERVICESTATE::OK\tSERVICEOUTPUT::HTTP OK\tSERVICEPERFDATA::time=0.001s;;;0;10\tSERVICECHECKCOMMAND::check_http!-p 80\n"
@@ -105,7 +105,7 @@ func TestFileTailer_HostPerfdataDefault(t *testing.T) {
 	// Start with no files
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// Create service and host files
 	svcLine := "[SERVICEPERFDATA]\t1\thost1\tsvc1\tOK\tout1\tperf1=1\n"
@@ -153,7 +153,7 @@ func TestFileTailer_HostPerfdataPNP4Nagios(t *testing.T) {
 
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	hostLine := "HOSTNAME::router01\tHOSTSTATE::UP\tHOSTOUTPUT::PING OK\tHOSTPERFDATA::rta=0.5ms;100;500\tHOSTCHECKCOMMAND::check_ping!100,20%!500,60%\n"
 	require.NoError(t, os.WriteFile(hostFile, []byte(hostLine), 0644))
@@ -187,34 +187,38 @@ func TestFileTailer_Rotation(t *testing.T) {
 
 	err := tailer.start(context.Background(), componenttest.NewNopHost())
 	require.NoError(t, err)
-	defer tailer.shutdown(context.Background())
+	defer func() { _ = tailer.shutdown(context.Background()) }()
 
 	// Write data to original file
 	f, err := os.OpenFile(perfFile, os.O_APPEND|os.O_WRONLY, 0644)
 	require.NoError(t, err)
 	_, err = f.WriteString("[SERVICEPERFDATA]\t1\thost1\tsvc1\tOK\tout1\tperf1=1\n")
 	require.NoError(t, err)
-	f.Close()
+	_ = f.Close()
 
 	// Simulate rotation: rename old file and create new one
-	os.Rename(perfFile, perfFile+".old")
+	require.NoError(t, os.Rename(perfFile, perfFile+".old"))
 	require.NoError(t, os.WriteFile(perfFile, []byte("[SERVICEPERFDATA]\t2\thost2\tsvc2\tWARNING\tout2\tperf2=2\n"), 0644))
 
 	results, err := tailer.collect(context.Background())
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, len(results), 1)
+
+	// Rotation must surface data from BOTH the pre-rotation file (drained from the
+	// old fd) and the post-rotation file (read from the reopened path).
+	require.Len(t, results, 2)
 
 	foundHost1 := false
 	foundHost2 := false
 	for _, r := range results {
-		if r.HostName == "host1" {
+		switch r.HostName {
+		case "host1":
 			foundHost1 = true
-		}
-		if r.HostName == "host2" {
+		case "host2":
 			foundHost2 = true
 		}
 	}
-	assert.True(t, foundHost1 || foundHost2, "should have read data from at least one file")
+	assert.True(t, foundHost1, "expected pre-rotation data (host1) drained from the old fd")
+	assert.True(t, foundHost2, "expected post-rotation data (host2) read from the reopened file")
 }
 
 func TestFileTailer_FileNotExist(t *testing.T) {
@@ -250,6 +254,7 @@ func TestParseDefaultLine(t *testing.T) {
 				State:              0,
 				PluginOutput:       "HTTP OK",
 				PerfData:           "time=0.001s",
+				LastCheck:          1520553350,
 			},
 		},
 		{

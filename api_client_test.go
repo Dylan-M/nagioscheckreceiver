@@ -5,8 +5,10 @@ package nagioscheckreceiver
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -72,7 +74,7 @@ func TestAPIClient_Collect(t *testing.T) {
 		assert.Equal(t, "secret", password)
 
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(sampleServiceListResponse))
+		_, _ = w.Write([]byte(sampleServiceListResponse))
 	}))
 	defer server.Close()
 
@@ -122,7 +124,7 @@ func TestAPIClient_Collect(t *testing.T) {
 func TestAPIClient_ErrorResponse(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"format_version": 0,
 			"result": {
 				"type_code": 4,
@@ -151,7 +153,7 @@ func TestAPIClient_AuthFailure(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("WWW-Authenticate", `Basic realm="Nagios Access"`)
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("<html>Unauthorized</html>"))
+		_, _ = w.Write([]byte("<html>Unauthorized</html>"))
 	}))
 	defer server.Close()
 
@@ -170,10 +172,40 @@ func TestAPIClient_AuthFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "authentication failed")
 }
 
+func TestAPIClient_Reuses401Connection(t *testing.T) {
+	// On a 401 the response body must be fully drained before close, otherwise
+	// the HTTP transport cannot reuse the keep-alive connection and opens a fresh
+	// TCP connection on the next scrape. Two sequential 401 scrapes should ride a
+	// single connection.
+	var conns atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte("<html>Unauthorized</html>"))
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			conns.Add(1)
+		}
+	}
+	server.Start()
+	defer server.Close()
+
+	cfg := &APIConfig{ClientConfig: confighttp.ClientConfig{Endpoint: server.URL}}
+	client := newAPIClient(cfg, zaptest.NewLogger(t))
+	client.client = server.Client()
+
+	for i := 0; i < 2; i++ {
+		_, err := client.collect(context.Background())
+		require.Error(t, err)
+	}
+
+	require.Equal(t, int32(1), conns.Load(), "401 path must drain the body so the keep-alive connection is reused")
+}
+
 func TestAPIStatusToState(t *testing.T) {
 	tests := []struct {
-		bitmask    int
-		wantState  int
+		bitmask   int
+		wantState int
 	}{
 		{1, 3},  // Pending -> UNKNOWN
 		{2, 0},  // OK

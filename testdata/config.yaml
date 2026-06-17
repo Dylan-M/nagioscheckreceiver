@@ -38,3 +38,4 @@ nagioscheck/livestatus_tcp:
   livestatus:
     address: "nagios-host:6557"
     network: "tcp"
+    timeout: 10s

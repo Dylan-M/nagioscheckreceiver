@@ -5,6 +5,7 @@ package nagioscheckreceiver
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,6 +132,27 @@ func TestConfig_Validate(t *testing.T) {
 				},
 			},
 			wantErr: "livestatus config: unsupported network",
+		},
+		{
+			name: "livestatus valid with timeout",
+			cfg: Config{
+				Livestatus: &LivestatusConfig{
+					Address: "/tmp/live",
+					Network: "unix",
+					Timeout: 5 * time.Second,
+				},
+			},
+		},
+		{
+			name: "livestatus negative timeout",
+			cfg: Config{
+				Livestatus: &LivestatusConfig{
+					Address: "/tmp/live",
+					Network: "unix",
+					Timeout: -1 * time.Second,
+				},
+			},
+			wantErr: "livestatus config: timeout must not be negative",
 		},
 	}
 

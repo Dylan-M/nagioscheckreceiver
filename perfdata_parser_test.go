@@ -231,11 +231,11 @@ func TestTokenizePerfdata(t *testing.T) {
 
 func TestParseValueAndUOM(t *testing.T) {
 	tests := []struct {
-		name        string
-		input       string
-		wantVal     float64
-		wantUOM     string
-		wantErr     bool
+		name    string
+		input   string
+		wantVal float64
+		wantUOM string
+		wantErr bool
 	}{
 		{"seconds", "0.001s", 0.001, "s", false},
 		{"bytes", "3302B", 3302.0, "B", false},

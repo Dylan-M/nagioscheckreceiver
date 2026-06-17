@@ -135,6 +135,7 @@ func (m *metricNagiosCheckExecutionTime) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosCheckExecutionTime(cfg MetricConfig) metricNagiosCheckExecutionTime {
 	m := metricNagiosCheckExecutionTime{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -184,6 +185,7 @@ func (m *metricNagiosCheckLastCheck) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosCheckLastCheck(cfg MetricConfig) metricNagiosCheckLastCheck {
 	m := metricNagiosCheckLastCheck{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -233,6 +235,7 @@ func (m *metricNagiosCheckLatency) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosCheckLatency(cfg MetricConfig) metricNagiosCheckLatency {
 	m := metricNagiosCheckLatency{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -284,6 +287,7 @@ func (m *metricNagiosCheckState) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosCheckState(cfg MetricConfig) metricNagiosCheckState {
 	m := metricNagiosCheckState{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -336,6 +340,7 @@ func (m *metricNagiosPerfdataCritical) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosPerfdataCritical(cfg MetricConfig) metricNagiosPerfdataCritical {
 	m := metricNagiosPerfdataCritical{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -388,6 +393,7 @@ func (m *metricNagiosPerfdataMax) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosPerfdataMax(cfg MetricConfig) metricNagiosPerfdataMax {
 	m := metricNagiosPerfdataMax{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -440,6 +446,7 @@ func (m *metricNagiosPerfdataMin) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosPerfdataMin(cfg MetricConfig) metricNagiosPerfdataMin {
 	m := metricNagiosPerfdataMin{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -492,6 +499,7 @@ func (m *metricNagiosPerfdataValue) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosPerfdataValue(cfg MetricConfig) metricNagiosPerfdataValue {
 	m := metricNagiosPerfdataValue{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -544,6 +552,7 @@ func (m *metricNagiosPerfdataWarning) emit(metrics pmetric.MetricSlice) {
 
 func newMetricNagiosPerfdataWarning(cfg MetricConfig) metricNagiosPerfdataWarning {
 	m := metricNagiosPerfdataWarning{config: cfg}
+
 	if cfg.Enabled {
 		m.data = pmetric.NewMetric()
 		m.init()
@@ -607,17 +616,17 @@ func NewMetricsBuilder(mbc MetricsBuilderConfig, settings receiver.Settings, opt
 		resourceAttributeIncludeFilter: make(map[string]filter.Filter),
 		resourceAttributeExcludeFilter: make(map[string]filter.Filter),
 	}
+	if mbc.ResourceAttributes.HostName.MetricsInclude != nil {
+		mb.resourceAttributeIncludeFilter["host.name"] = filter.CreateFilter(mbc.ResourceAttributes.HostName.MetricsInclude)
+	}
+	if mbc.ResourceAttributes.HostName.MetricsExclude != nil {
+		mb.resourceAttributeExcludeFilter["host.name"] = filter.CreateFilter(mbc.ResourceAttributes.HostName.MetricsExclude)
+	}
 	if mbc.ResourceAttributes.NagiosCheckCommand.MetricsInclude != nil {
 		mb.resourceAttributeIncludeFilter["nagios.check.command"] = filter.CreateFilter(mbc.ResourceAttributes.NagiosCheckCommand.MetricsInclude)
 	}
 	if mbc.ResourceAttributes.NagiosCheckCommand.MetricsExclude != nil {
 		mb.resourceAttributeExcludeFilter["nagios.check.command"] = filter.CreateFilter(mbc.ResourceAttributes.NagiosCheckCommand.MetricsExclude)
-	}
-	if mbc.ResourceAttributes.NagiosHostName.MetricsInclude != nil {
-		mb.resourceAttributeIncludeFilter["nagios.host.name"] = filter.CreateFilter(mbc.ResourceAttributes.NagiosHostName.MetricsInclude)
-	}
-	if mbc.ResourceAttributes.NagiosHostName.MetricsExclude != nil {
-		mb.resourceAttributeExcludeFilter["nagios.host.name"] = filter.CreateFilter(mbc.ResourceAttributes.NagiosHostName.MetricsExclude)
 	}
 	if mbc.ResourceAttributes.NagiosServiceDescription.MetricsInclude != nil {
 		mb.resourceAttributeIncludeFilter["nagios.service.description"] = filter.CreateFilter(mbc.ResourceAttributes.NagiosServiceDescription.MetricsInclude)

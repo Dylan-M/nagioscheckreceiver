@@ -21,17 +21,17 @@ func NewResourceBuilder(rac ResourceAttributesConfig) *ResourceBuilder {
 	}
 }
 
+// SetHostName sets provided value as "host.name" attribute.
+func (rb *ResourceBuilder) SetHostName(val string) {
+	if rb.config.HostName.Enabled {
+		rb.res.Attributes().PutStr("host.name", val)
+	}
+}
+
 // SetNagiosCheckCommand sets provided value as "nagios.check.command" attribute.
 func (rb *ResourceBuilder) SetNagiosCheckCommand(val string) {
 	if rb.config.NagiosCheckCommand.Enabled {
 		rb.res.Attributes().PutStr("nagios.check.command", val)
-	}
-}
-
-// SetNagiosHostName sets provided value as "nagios.host.name" attribute.
-func (rb *ResourceBuilder) SetNagiosHostName(val string) {
-	if rb.config.NagiosHostName.Enabled {
-		rb.res.Attributes().PutStr("nagios.host.name", val)
 	}
 }
 

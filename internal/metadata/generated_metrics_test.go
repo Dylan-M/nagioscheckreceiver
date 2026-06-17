@@ -62,7 +62,6 @@ func TestMetricsBuilder(t *testing.T) {
 			mb := NewMetricsBuilder(loadMetricsBuilderConfig(t, tt.name), settings, WithStartTime(start))
 
 			expectedWarnings := 0
-
 			assert.Equal(t, expectedWarnings, observedLogs.Len())
 
 			defaultMetricsCount := 0
@@ -99,8 +98,8 @@ func TestMetricsBuilder(t *testing.T) {
 			mb.RecordNagiosPerfdataWarningDataPoint(ts, 1, "nagios.perfdata.label-val", "nagios.perfdata.unit-val")
 
 			rb := mb.NewResourceBuilder()
+			rb.SetHostName("host.name-val")
 			rb.SetNagiosCheckCommand("nagios.check.command-val")
-			rb.SetNagiosHostName("nagios.host.name-val")
 			rb.SetNagiosServiceDescription("nagios.service.description-val")
 			rb.SetNagiosSource("nagios.source-val")
 			res := rb.Emit()
