@@ -1,0 +1,31 @@
+name: e2e
+
+# Repeatable end-to-end test: stand up a single-instance Nagios environment on
+# the runner and validate nagioscheckreceiver against all three ingestion modes
+# (API, File, Livestatus) with a real collector built around the receiver.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  nagios-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Provision single-instance Nagios environment
+        run: sudo bash testenv/provision.sh
+
+      - name: End-to-end test (API, File, Livestatus)
+        run: sudo REPO_ROOT="$PWD" bash testenv/run-e2e.sh
+
+      - name: Collector logs on failure
+        if: failure()
+        run: |
+          for m in api file livestatus; do
+            echo "===== $m collector log ====="
+            sudo tail -50 "/tmp/e2e-$m-collector.log" 2>/dev/null || true
+          done
