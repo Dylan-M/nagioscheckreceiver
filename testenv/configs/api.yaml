@@ -1,0 +1,23 @@
+# Collector config: nagioscheckreceiver in API mode against the local Nagios CGI.
+receivers:
+  nagioscheck:
+    collection_interval: 5s
+    api:
+      endpoint: ${env:NAGIOS_API_ENDPOINT}
+      username: ${env:NAGIOS_ADMIN_USER}
+      password: ${env:NAGIOS_ADMIN_PASS}
+
+exporters:
+  file:
+    path: ${env:E2E_OUT}
+  debug:
+    verbosity: basic
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nagioscheck]
+      exporters: [file, debug]

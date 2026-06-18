@@ -1,0 +1,22 @@
+# Collector config: nagioscheckreceiver in Livestatus mode over the unix socket.
+receivers:
+  nagioscheck:
+    collection_interval: 5s
+    livestatus:
+      address: ${env:NAGIOS_LIVESTATUS_SOCKET}
+      network: unix
+
+exporters:
+  file:
+    path: ${env:E2E_OUT}
+  debug:
+    verbosity: basic
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nagioscheck]
+      exporters: [file, debug]

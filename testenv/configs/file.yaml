@@ -1,0 +1,23 @@
+# Collector config: nagioscheckreceiver in File mode tailing the perfdata files.
+receivers:
+  nagioscheck:
+    collection_interval: 5s
+    file:
+      service_perfdata_file: ${env:NAGIOS_SERVICE_PERFDATA}
+      host_perfdata_file: ${env:NAGIOS_HOST_PERFDATA}
+      format: default
+
+exporters:
+  file:
+    path: ${env:E2E_OUT}
+  debug:
+    verbosity: basic
+
+service:
+  telemetry:
+    metrics:
+      level: none
+  pipelines:
+    metrics:
+      receivers: [nagioscheck]
+      exporters: [file, debug]
